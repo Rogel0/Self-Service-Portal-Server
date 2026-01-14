@@ -1,9 +1,10 @@
 import { Pool } from "pg";
+import logger from "../utils/logger";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-console.log(
+logger.info(
   "Attempting to connect with URI:",
   process.env.PG_URI?.replace(/:[^:]*@/, ":****@")
 ); // Hide password
@@ -15,16 +16,16 @@ const pool = new Pool({
 // Test connection
 pool.connect((err, client, release) => {
   if (err) {
-    console.error("❌ Connection failed:", err.message);
-    console.error("Full error:", err);
+    logger.error("Connection failed:", err.message);
+    logger.error("Full error:", err);
   } else {
-    console.log("✅ Successfully connected to PostgreSQL");
+    logger.info("Successfully connected to PostgreSQL");
     release();
   }
 });
 
 pool.on("error", (err: Error) => {
-  console.error("Unexpected error on idle client", err);
+  logger.error("Unexpected error on idle client", err);
   process.exit(-1);
 });
 
