@@ -1,5 +1,3 @@
-import bcrypt from "bcryptjs";
-
 export interface Employee {
   employee_id: number;
   firstname: string;
@@ -11,10 +9,10 @@ export interface Employee {
   password: string;
   email: string;
   created_at: Date;
-  updated_At: Date;
+  updated_at: Date;
 }
 
-export interface CreatEmployeeInput {
+export interface CreateEmployeeInput {
   firstname: string;
   lastname: string;
   middlename?: string;
@@ -23,4 +21,12 @@ export interface CreatEmployeeInput {
   username: string;
   password: string;
   email: string;
+}
+
+export interface UpdateEmployeeInput {
+  firstname?: string;
+  lastname?: string;
+  role_id?: number;
+  department_id?: number;
+  email?: string;
 }

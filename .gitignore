@@ -34,3 +34,5 @@ dist/
 *.tsbuildinfo
 
 *.log
+
+.sql
