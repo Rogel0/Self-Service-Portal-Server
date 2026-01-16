@@ -9,12 +9,10 @@ export const login = async (req: Request, res: Response) => {
     const { username, password, keepSignedIn } = req.body;
 
     if (!username || !password) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Username and password are required",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Username and password are required",
+      });
     }
 
     const result = await employeeAuthService.login({ username, password });
