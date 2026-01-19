@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as employeeAuthService from "./employee-auth.service";
 import logger from "../../../utils/logger";
 import { getAuthCookieOptions, getCookieConfig } from "../../../utils/cookie";
+import pool from "../../../config/database";
 
 // POST /api/auth/employee/login
 export const login = async (req: Request, res: Response) => {
@@ -43,4 +44,21 @@ export const login = async (req: Request, res: Response) => {
 export const logout = async (req: Request, res: Response) => {
   res.clearCookie("token", getCookieConfig());
   return res.json({ success: true, message: "Logged out" });
+};
+
+export const getMe = async (req: Request, res: Response) => {
+  const userId = req.employee?.employee_id;
+  const result = await pool.query(
+    `SELECT e.employee_id, e.firstname, e.lastname, e.middlename, e.role_id, e.department_id,
+            d.dept_name AS department, e.username, e.email, e.created_at, e.updated_at
+     FROM employee e
+     JOIN department d ON e.department_id = d.dept_id
+     WHERE e.employee_id = $1
+     LIMIT 1`,
+    [userId],
+  );
+  if (result.rows.length === 0) {
+    return res.status(404).json({ success: false, message: "User not found" });
+  }
+  res.json({ success: true, data: { employee: result.rows[0] } });
 };

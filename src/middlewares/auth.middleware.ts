@@ -2,50 +2,61 @@ import { Request, Response, NextFunction } from "express";
 import { EmployeeTokenPayload, verifyToken } from "../utils/token";
 import logger from "../utils/logger";
 
-// Extend Express Request
-declare global {
-  namespace Express {
-    interface Request {
-      employee?: EmployeeTokenPayload;
-    }
+// Augment Express Request to include `employee` from our token payload
+declare module "express-serve-static-core" {
+  interface Request {
+    employee?: EmployeeTokenPayload;
   }
 }
 
-// Verify JWT token for employees
 export const employeeAuth = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({ success: false, message: "No token" });
-  }
   try {
-    req.employee = verifyToken(token);
-    next();
-  } catch {
-    return res.status(401).json({ success: false, message: "Invalid token" });
+    const tokenFromCookie = req.cookies?.token;
+    const header = req.headers.authorization;
+    const tokenFromHeader = header?.startsWith("Bearer ")
+      ? header.split(" ")[1]
+      : undefined;
+    const token = tokenFromCookie ?? tokenFromHeader;
+
+    if (!token) {
+      logger.info("Auth: no token provided", {
+        path: req.path,
+        method: req.method,
+      });
+      return res
+        .status(401)
+        .json({ success: false, message: "Authentication required" });
+    }
+
+    const payload = verifyToken(token); // throws on invalid/expired
+    // minimal payload: { employee_id, role_id, department_id }
+    req.employee = payload;
+    return next();
+  } catch (err) {
+    logger.warn("Auth: token invalid", {
+      err: (err as Error).message,
+      path: req.path,
+    });
+    return res
+      .status(401)
+      .json({ success: false, message: "Invalid or expired token" });
   }
 };
 
-// Role-based access control
 export const requireRole = (...allowedRoleIds: number[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.employee) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required",
-      });
+      return res
+        .status(401)
+        .json({ success: false, message: "Authentication required" });
     }
-
     if (!allowedRoleIds.includes(req.employee.role_id)) {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied. Insufficient permissions.",
-      });
+      return res.status(403).json({ success: false, message: "Access denied" });
     }
-
-    next();
+    return next();
   };
 };
