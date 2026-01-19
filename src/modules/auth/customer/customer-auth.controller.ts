@@ -7,7 +7,7 @@ import { getAuthCookieOptions, getCookieConfig } from "../../../utils/cookie";
 export const login = async (req: Request, res: Response) => {
   const { username, password, keepSignedIn } = req.body;
   const result = await pool.query(
-    `SELECT customer_id, first_name, last_name, username, password, email, created_at
+    `SELECT customer_id, first_name, last_name, username, password, email, verification_status, approved, created_at
      FROM customer_user
      WHERE lower(username) = lower($1) OR lower(email) = lower($1)
      LIMIT 1`,
@@ -26,6 +26,18 @@ export const login = async (req: Request, res: Response) => {
       .status(401)
       .json({ success: false, message: "Invalid credentials" });
 
+  if (!customer.approved) {
+    return res
+      .status(403)
+      .json({ success: false, message: "Account not approved yet" });
+  }
+
+  if (customer.verification_status !== "approved") {
+    return res
+      .status(403)
+      .json({ success: false, message: "Account not verified" });
+  }
+
   const payload = {
     customer_id: customer.customer_id,
     username: customer.username,
@@ -39,7 +51,7 @@ export const login = async (req: Request, res: Response) => {
   return res.json({
     success: true,
     message: "Login successful",
-    data: { customer, token },
+    data: { customer },
   });
 };
 
