@@ -15,7 +15,7 @@ const sanitizeEmployee = (employee: Employee): EmployeeSafe => {
 
 // Login
 export const login = async (
-  input: EmployeeLoginInput
+  input: EmployeeLoginInput,
 ): Promise<EmployeeAuthResponse> => {
   const usernameOrEmail = (input.username ?? "").toString().trim();
   if (!usernameOrEmail || !input.password) {
@@ -24,12 +24,14 @@ export const login = async (
 
   try {
     const result = await pool.query(
-      `SELECT employee_id, firstname, lastname, middlename, role_id, department_id,
-              username, password, email, created_at, updated_at
-       FROM employee
-       WHERE lower(username) = lower($1) OR lower(email) = lower($1)
-       LIMIT 1`,
-      [usernameOrEmail]
+      `SELECT e.employee_id, e.firstname, e.lastname, e.middlename, e.role_id, e.department_id,
+       d.dept_name AS department, -- add this line
+       e.username, e.password, e.email, e.created_at, e.updated_at
+      FROM employee e
+      JOIN department d ON e.department_id = d.dept_id
+      WHERE lower(e.username) = lower($1) OR lower(e.email) = lower($1)
+      LIMIT 1`,
+      [usernameOrEmail],
     );
 
     const employee: Employee | undefined = result.rows[0];

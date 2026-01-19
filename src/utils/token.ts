@@ -8,9 +8,14 @@ export interface EmployeeTokenPayload {
   department_id: number;
 }
 
-export const generateToken = (payload: EmployeeTokenPayload): string => {
-  const options: SignOptions = { expiresIn: "7d" };
-  return jwt.sign(payload, env.JWT_SECRET, options);
+export const generateToken = (
+  payload: EmployeeTokenPayload,
+  expiresIn?: string | number,
+): string => {
+  const opts = {
+    expiresIn: expiresIn ?? env.JWT_EXPIRES_IN,
+  } as jwt.SignOptions;
+  return jwt.sign(payload, env.JWT_SECRET, opts);
 };
 
 export const verifyToken = (token: string): EmployeeTokenPayload => {

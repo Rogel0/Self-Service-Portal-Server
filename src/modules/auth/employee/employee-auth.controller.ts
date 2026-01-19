@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import * as employeeAuthService from "./employee-auth.service";
 import logger from "../../../utils/logger";
-import { getAuthCookieOptions } from "../../../utils/cookie";
+import { getAuthCookieOptions, getCookieConfig } from "../../../utils/cookie";
 
 // POST /api/auth/employee/login
 export const login = async (req: Request, res: Response) => {
@@ -25,7 +25,7 @@ export const login = async (req: Request, res: Response) => {
     res.cookie(
       "token",
       result.data.token,
-      getAuthCookieOptions(!!keepSignedIn)
+      getAuthCookieOptions(!!keepSignedIn),
     );
 
     res.json({
@@ -38,4 +38,9 @@ export const login = async (req: Request, res: Response) => {
       .status(500)
       .json({ success: false, message: "Internal server error" });
   }
+};
+
+export const logout = async (req: Request, res: Response) => {
+  res.clearCookie("token", getCookieConfig());
+  return res.json({ success: true, message: "Logged out" });
 };
