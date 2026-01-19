@@ -1,11 +1,17 @@
 import { Request, Response, NextFunction } from "express";
-import { EmployeeTokenPayload, verifyToken } from "../utils/token";
+import {
+  EmployeeTokenPayload,
+  CustomerTokenPayload,
+  verifyToken,
+  verifyCustomerToken,
+} from "../utils/token";
 import logger from "../utils/logger";
 
-// Augment Express Request to include `employee` from our token payload
+// Augment Express Request to include `employee` and `customer` from our token payloads
 declare module "express-serve-static-core" {
   interface Request {
     employee?: EmployeeTokenPayload;
+    customer?: CustomerTokenPayload;
   }
 }
 
@@ -59,4 +65,25 @@ export const requireRole = (...allowedRoleIds: number[]) => {
     }
     return next();
   };
+};
+
+export const customerAuth = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const token =
+    req.cookies?.token ||
+    (req.headers.authorization?.startsWith("Bearer ")
+      ? req.headers.authorization.split(" ")[1]
+      : undefined);
+  if (!token)
+    return res.status(401).json({ success: false, message: "No Token" });
+
+  try {
+    req.customer = verifyCustomerToken(token);
+    return next();
+  } catch {
+    return res.status(401).json({ success: false, message: "Invalid Token" });
+  }
 };

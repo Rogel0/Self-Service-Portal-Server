@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import employeeAuthRoutes from "./modules/auth/employee/employee-auth.routes";
+import customerAuthRoutes from "./modules/auth/customer/customer-auth.routes";
 import cookieParser from "cookie-parser";
 
 const app = express();
@@ -17,6 +18,7 @@ app.use(cookieParser());
 
 // Routes
 app.use("/api/auth/employee", employeeAuthRoutes);
+app.use("/api/auth/customer", customerAuthRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {
