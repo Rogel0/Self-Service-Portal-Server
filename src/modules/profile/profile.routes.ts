@@ -23,7 +23,8 @@ router.get("/", async (req: Request, res: Response) => {
       [payload.employee_id],
     );
     const employee = result.rows[0];
-    if (!employee) return res.status(404).json({ success: false, message: "Not found" });
+    if (!employee)
+      return res.status(404).json({ success: false, message: "Not found" });
     return res.json({ success: true, data: { employee } });
   } catch {
     try {
@@ -34,7 +35,8 @@ router.get("/", async (req: Request, res: Response) => {
         [payload.customer_id],
       );
       const customer = result.rows[0];
-      if (!customer) return res.status(404).json({ success: false, message: "Not found" });
+      if (!customer)
+        return res.status(404).json({ success: false, message: "Not found" });
       return res.json({ success: true, data: { customer } });
     } catch {
       return res.status(401).json({ success: false, message: "Invalid token" });
