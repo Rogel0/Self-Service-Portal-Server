@@ -3,6 +3,7 @@ import cors from "cors";
 import employeeAuthRoutes from "./modules/auth/employee/employee-auth.routes";
 import customerAuthRoutes from "./modules/auth/customer/customer-auth.routes";
 import unifiedAuthRoutes from "./modules/auth/auth.routes";
+import profileRoutes from "./modules/profile/profile.routes";
 import cookieParser from "cookie-parser";
 
 const app = express();
@@ -24,6 +25,9 @@ app.use("/api/auth", unifiedAuthRoutes);
 // keep legacy mounts for explicit routes
 app.use("/api/auth/employee", employeeAuthRoutes);
 app.use("/api/auth/customer", customerAuthRoutes);
+
+// Simple profile endpoint for client-side profile fetching (returns employee/customer)
+app.use("/api/profile", profileRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {
