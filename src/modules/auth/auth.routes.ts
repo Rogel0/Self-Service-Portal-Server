@@ -156,11 +156,43 @@ router.get("/me", (req: Request, res: Response) => {
     return res.status(401).json({ success: false, message: "No token" });
   try {
     const payload = verifyToken(token);
-    return res.json({ success: true, data: { employee: payload } });
+    return pool
+      .query(
+        `SELECT e.employee_id, e.firstname, e.lastname, e.middlename, e.role_id, e.department_id,
+                d.dept_name AS department, e.username, e.email, e.created_at, e.updated_at
+         FROM employee e
+         JOIN department d ON e.department_id = d.dept_id
+         WHERE e.employee_id = $1
+         LIMIT 1`,
+        [payload.employee_id],
+      )
+      .then((result) => {
+        if (!result.rows.length) {
+          return res
+            .status(404)
+            .json({ success: false, message: "User not found" });
+        }
+        return res.json({ success: true, data: { employee: result.rows[0] } });
+      });
   } catch {
     try {
       const payload = verifyCustomerToken(token);
-      return res.json({ success: true, data: { customer: payload } });
+      return pool
+        .query(
+          `SELECT customer_id, first_name, last_name, middle_name, username, email, created_at
+           FROM customer_user
+           WHERE customer_id = $1
+           LIMIT 1`,
+          [payload.customer_id],
+        )
+        .then((result) => {
+          if (!result.rows.length) {
+            return res
+              .status(404)
+              .json({ success: false, message: "User not found" });
+          }
+          return res.json({ success: true, data: { customer: result.rows[0] } });
+        });
     } catch {
       return res.status(401).json({ success: false, message: "Invalid token" });
     }

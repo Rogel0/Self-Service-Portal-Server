@@ -1,21 +1,37 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import employeeAuthRoutes from "./modules/auth/employee/employee-auth.routes";
 import customerAuthRoutes from "./modules/auth/customer/customer-auth.routes";
 import unifiedAuthRoutes from "./modules/auth/auth.routes";
 import profileRoutes from "./modules/profile/profile.routes";
+import machineRoutes from "./modules/machines/machine.routes";
 import cookieParser from "cookie-parser";
 
 const app = express();
 
+// Security middleware
+app.use(helmet());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // limit each IP to 300 requests per windowMs
+  message: "Too many requests from this IP, please try again later.",
+  skip: (req) => req.path.startsWith("/auth"),
+});
+app.use("/api/", limiter);
+
 // Middleware
 app.use(
   cors({
-    origin: "http://localhost:5173", // or your client URL
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
     credentials: true,
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
 // Routes
@@ -28,6 +44,33 @@ app.use("/api/auth/customer", customerAuthRoutes);
 
 // Simple profile endpoint for client-side profile fetching (returns employee/customer)
 app.use("/api/profile", profileRoutes);
+
+// Machine routes
+app.use("/api/machines", machineRoutes);
+
+// Parts request routes
+import partsRequestRoutes from "./modules/parts-request/parts-request.routes";
+app.use("/api/parts-requests", partsRequestRoutes);
+
+// Quote request routes
+import quoteRequestRoutes from "./modules/quote-request/quote-request.routes";
+app.use("/api/quote-requests", quoteRequestRoutes);
+
+// Admin routes
+import adminRoutes from "./modules/admin/admin.routes";
+app.use("/api/admin", adminRoutes);
+
+// Sales routes
+import salesRoutes from "./modules/sales/sales.routes";
+app.use("/api/sales", salesRoutes);
+
+// Logistics routes
+import logisticsRoutes from "./modules/logistics/logistics.routes";
+app.use("/api/logistics", logisticsRoutes);
+
+// Products routes
+import productsRoutes from "./modules/products/products.routes";
+app.use("/api/products", productsRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {
