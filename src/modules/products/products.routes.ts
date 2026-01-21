@@ -1,0 +1,10 @@
+import express from "express";
+import * as controller from "./products.controller";
+
+const router = express.Router();
+
+router.get("/", controller.getProducts);
+router.get("/parts", controller.getAllParts);
+router.get("/:productId/parts", controller.getPartsByProduct);
+
+export default router;
