@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import pool from "../../config/database";
 import { hashPassword } from "../../utils/hash";
 import logger from "../../utils/logger";
+import { supabase } from "../../utils/supabase";
 
 // Get pending customer registrations
 export const getPendingRegistrations = async (req: Request, res: Response) => {
@@ -259,6 +260,131 @@ export const getDepartments = async (req: Request, res: Response) => {
     return res
       .status(500)
       .json({ success: false, message: "Failed to fetch departments" });
+  }
+};
+
+const sanitizeFilename = (name: string) =>
+  name.replace(/[^\w.-]+/g, "_").replace(/_+/g, "_");
+
+const getManualUrl = async (fileUrlOrPath: string) => {
+  if (fileUrlOrPath.startsWith("http")) return fileUrlOrPath;
+  const { data, error } = await supabase.storage
+    .from("manuals")
+    .createSignedUrl(fileUrlOrPath, 60 * 10);
+  if (error) {
+    const { data: publicUrl } = supabase.storage
+      .from("manuals")
+      .getPublicUrl(fileUrlOrPath);
+    return publicUrl.publicUrl;
+  }
+  return data.signedUrl;
+};
+
+export const uploadManualFile = async (req: Request, res: Response) => {
+  const file = (req as Request & { file?: Express.Multer.File }).file;
+  if (!file) {
+    return res.status(400).json({
+      success: false,
+      message: "No file uploaded",
+    });
+  }
+
+  try {
+    const fileName = sanitizeFilename(file.originalname);
+    const filePath = `manuals/${Date.now()}-${fileName}`;
+    const title = file.originalname.replace(/\.[^.]+$/, "");
+
+    const { data, error } = await supabase.storage
+      .from("manuals")
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
+
+    if (error) {
+      logger.error("Supabase upload error", { error });
+      return res.status(500).json({
+        success: false,
+        message: "Failed to upload manual",
+      });
+    }
+
+    const insertResult = await pool.query(
+      `INSERT INTO machine_manuals (machine_id, title, file_url, uploaded_at)
+       VALUES (NULL, $1, $2, NOW())
+       RETURNING manual_id, title, file_url, uploaded_at`,
+      [title, data.path],
+    );
+    const manualRow = insertResult.rows[0];
+    const url = await getManualUrl(manualRow.file_url);
+
+    return res.json({
+      success: true,
+      data: {
+        manual: {
+          ...manualRow,
+          url,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error("Upload manual error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload manual",
+    });
+  }
+};
+
+export const getManuals = async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT manual_id, title, file_url, uploaded_at
+       FROM machine_manuals
+       WHERE machine_id IS NULL
+       ORDER BY uploaded_at DESC`,
+    );
+
+    const manuals = await Promise.all(
+      result.rows.map(async (row) => ({
+        ...row,
+        url: await getManualUrl(row.file_url),
+      })),
+    );
+
+    return res.json({ success: true, data: { manuals } });
+  } catch (error) {
+    logger.error("Get manuals error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch manuals",
+    });
+  }
+};
+
+// Get all machines (admin)
+export const getMachines = async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT 
+        m.machine_id,
+        m.serial_number,
+        m.model_number,
+        m.product_id,
+        p.product_name,
+        m.customer_id,
+        cu.first_name || ' ' || cu.last_name AS customer_name
+       FROM machines m
+       JOIN product p ON m.product_id = p.product_id
+       JOIN customer_user cu ON m.customer_id = cu.customer_id
+       ORDER BY m.created_at DESC`,
+    );
+    return res.json({ success: true, data: { machines: result.rows } });
+  } catch (error) {
+    logger.error("Get machines error", { error });
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch machines" });
   }
 };
 

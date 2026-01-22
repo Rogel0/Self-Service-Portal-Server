@@ -1,6 +1,7 @@
 import express from "express";
 import * as controller from "./admin.controller";
 import validate from "../../middlewares/validate.middleware";
+import multer from "multer";
 import { createEmployeeSchema, updateEmployeeSchema } from "./admin-user.schema";
 import {
   addMachineAdminSchema,
@@ -13,6 +14,10 @@ import {
 import { employeeAuth } from "../../middlewares/auth.middleware";
 
 const router = express.Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+});
 
 router.get("/registrations/pending", employeeAuth, controller.getPendingRegistrations);
 router.post("/registrations/:customerId/approve", employeeAuth, controller.approveRegistration);
@@ -35,6 +40,14 @@ router.put(
 router.get("/users/customers", employeeAuth, controller.getCustomers);
 router.get("/users/roles", employeeAuth, controller.getRoles);
 router.get("/users/departments", employeeAuth, controller.getDepartments);
+router.get("/machines", employeeAuth, controller.getMachines);
+router.get("/manuals", employeeAuth, controller.getManuals);
+router.post(
+  "/manuals/upload",
+  employeeAuth,
+  upload.single("file"),
+  controller.uploadManualFile,
+);
 
 // Admin machine creation
 router.post(

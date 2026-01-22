@@ -278,7 +278,6 @@ export const addMachineAssets = async (req: Request, res: Response) => {
   }
 
   try {
-    await client.query("BEGIN");
 
     // Verify machine ownership
     const machineCheck = await client.query(
