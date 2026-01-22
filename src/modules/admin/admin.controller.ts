@@ -280,6 +280,20 @@ const getManualUrl = async (fileUrlOrPath: string) => {
   return data.signedUrl;
 };
 
+const getBrochureUrl = async (fileUrlOrPath: string) => {
+  if (fileUrlOrPath.startsWith("http")) return fileUrlOrPath;
+  const { data, error } = await supabase.storage
+    .from("brochures")
+    .createSignedUrl(fileUrlOrPath, 60 * 10);
+  if (error) {
+    const { data: publicUrl } = supabase.storage
+      .from("brochures")
+      .getPublicUrl(fileUrlOrPath);
+    return publicUrl.publicUrl;
+  }
+  return data.signedUrl;
+};
+
 export const uploadManualFile = async (req: Request, res: Response) => {
   const file = (req as Request & { file?: Express.Multer.File }).file;
   if (!file) {
@@ -358,6 +372,88 @@ export const getManuals = async (_req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch manuals",
+    });
+  }
+};
+
+export const uploadBrochureFile = async (req: Request, res: Response) => {
+  const file = (req as Request & { file?: Express.Multer.File }).file;
+  if (!file) {
+    return res.status(400).json({
+      success: false,
+      message: "No file uploaded",
+    });
+  }
+
+  try {
+    const fileName = sanitizeFilename(file.originalname);
+    const filePath = `brochures/${Date.now()}-${fileName}`;
+    const title = file.originalname.replace(/\.[^.]+$/, "");
+
+    const { data, error } = await supabase.storage
+      .from("brochures")
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
+
+    if (error) {
+      logger.error("Supabase brochure upload error", { error });
+      return res.status(500).json({
+        success: false,
+        message: "Failed to upload brochure",
+      });
+    }
+
+    const insertResult = await pool.query(
+      `INSERT INTO machine_brochures (machine_id, title, file_url, uploaded_at)
+       VALUES (NULL, $1, $2, NOW())
+       RETURNING brochure_id, title, file_url, uploaded_at`,
+      [title, data.path],
+    );
+    const brochureRow = insertResult.rows[0];
+    const url = await getBrochureUrl(brochureRow.file_url);
+
+    return res.json({
+      success: true,
+      data: {
+        brochure: {
+          ...brochureRow,
+          url,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error("Upload brochure error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload brochure",
+    });
+  }
+};
+
+export const getBrochures = async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT brochure_id, title, file_url, uploaded_at
+       FROM machine_brochures
+       WHERE machine_id IS NULL
+       ORDER BY uploaded_at DESC`,
+    );
+
+    const brochures = await Promise.all(
+      result.rows.map(async (row) => ({
+        ...row,
+        url: await getBrochureUrl(row.file_url),
+      })),
+    );
+
+    return res.json({ success: true, data: { brochures } });
+  } catch (error) {
+    logger.error("Get brochures error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch brochures",
     });
   }
 };

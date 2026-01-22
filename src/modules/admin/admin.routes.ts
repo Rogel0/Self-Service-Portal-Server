@@ -42,11 +42,18 @@ router.get("/users/roles", employeeAuth, controller.getRoles);
 router.get("/users/departments", employeeAuth, controller.getDepartments);
 router.get("/machines", employeeAuth, controller.getMachines);
 router.get("/manuals", employeeAuth, controller.getManuals);
+router.get("/brochures", employeeAuth, controller.getBrochures);
 router.post(
   "/manuals/upload",
   employeeAuth,
   upload.single("file"),
   controller.uploadManualFile,
+);
+router.post(
+  "/brochures/upload",
+  employeeAuth,
+  upload.single("file"),
+  controller.uploadBrochureFile,
 );
 
 // Admin machine creation
