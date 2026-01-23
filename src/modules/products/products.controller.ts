@@ -7,9 +7,20 @@ import { supabase } from "../../utils/supabase";
 export const getProducts = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      `SELECT product_id, product_name, product_desc, category, status, profile_image_url, created_at, updated_at
-       FROM product
-       ORDER BY product_name`
+      `SELECT 
+        p.product_id,
+        p.product_name,
+        p.product_desc,
+        p.category,
+        p.status,
+        p.profile_image_url,
+        p.created_at,
+        p.updated_at,
+        MIN(m.model_number) AS model_number
+       FROM product p
+       LEFT JOIN machines m ON m.product_id = p.product_id
+       GROUP BY p.product_id
+       ORDER BY p.product_name`
     );
 
     const products = await Promise.all(
