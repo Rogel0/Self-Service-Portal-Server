@@ -4,7 +4,7 @@ import validate from "../../middlewares/validate.middleware";
 import multer from "multer";
 import { createEmployeeSchema, updateEmployeeSchema } from "./admin-user.schema";
 import {
-  addMachineAdminSchema,
+  addMachineAdminProductSchema,
   addMachineAssetsSchema,
 } from "../machines/machine.schema";
 import {
@@ -55,12 +55,18 @@ router.post(
   upload.single("file"),
   controller.uploadBrochureFile,
 );
+router.post(
+  "/products/profile-image",
+  employeeAuth,
+  upload.single("file"),
+  controller.uploadProductProfileImage,
+);
 
 // Admin machine creation
 router.post(
   "/machines",
   employeeAuth,
-  validate(addMachineAdminSchema, "body"),
+  validate(addMachineAdminProductSchema, "body"),
   addMachineForAdmin,
 );
 router.post(

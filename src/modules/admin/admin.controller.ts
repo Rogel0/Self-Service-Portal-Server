@@ -294,6 +294,20 @@ const getBrochureUrl = async (fileUrlOrPath: string) => {
   return data.signedUrl;
 };
 
+const getProductImageUrl = async (fileUrlOrPath: string) => {
+  if (fileUrlOrPath.startsWith("http")) return fileUrlOrPath;
+  const { data, error } = await supabase.storage
+    .from("products")
+    .createSignedUrl(fileUrlOrPath, 60 * 10);
+  if (error) {
+    const { data: publicUrl } = supabase.storage
+      .from("products")
+      .getPublicUrl(fileUrlOrPath);
+    return publicUrl.publicUrl;
+  }
+  return data.signedUrl;
+};
+
 export const uploadManualFile = async (req: Request, res: Response) => {
   const file = (req as Request & { file?: Express.Multer.File }).file;
   if (!file) {
@@ -324,9 +338,9 @@ export const uploadManualFile = async (req: Request, res: Response) => {
     }
 
     const insertResult = await pool.query(
-      `INSERT INTO machine_manuals (machine_id, title, file_url, uploaded_at)
-       VALUES (NULL, $1, $2, NOW())
-       RETURNING manual_id, title, file_url, uploaded_at`,
+      `INSERT INTO machine_manuals (machine_id, product_id, title, file_url, uploaded_at)
+       VALUES (NULL, NULL, $1, $2, NOW())
+       RETURNING manual_id, title, file_url, uploaded_at, product_id`,
       [title, data.path],
     );
     const manualRow = insertResult.rows[0];
@@ -353,9 +367,8 @@ export const uploadManualFile = async (req: Request, res: Response) => {
 export const getManuals = async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      `SELECT manual_id, title, file_url, uploaded_at
+      `SELECT manual_id, title, file_url, uploaded_at, machine_id, product_id
        FROM machine_manuals
-       WHERE machine_id IS NULL
        ORDER BY uploaded_at DESC`,
     );
 
@@ -406,9 +419,9 @@ export const uploadBrochureFile = async (req: Request, res: Response) => {
     }
 
     const insertResult = await pool.query(
-      `INSERT INTO machine_brochures (machine_id, title, file_url, uploaded_at)
-       VALUES (NULL, $1, $2, NOW())
-       RETURNING brochure_id, title, file_url, uploaded_at`,
+      `INSERT INTO machine_brochures (machine_id, product_id, title, file_url, uploaded_at)
+       VALUES (NULL, NULL, $1, $2, NOW())
+       RETURNING brochure_id, title, file_url, uploaded_at, product_id`,
       [title, data.path],
     );
     const brochureRow = insertResult.rows[0];
@@ -435,9 +448,8 @@ export const uploadBrochureFile = async (req: Request, res: Response) => {
 export const getBrochures = async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      `SELECT brochure_id, title, file_url, uploaded_at
+      `SELECT brochure_id, title, file_url, uploaded_at, machine_id, product_id
        FROM machine_brochures
-       WHERE machine_id IS NULL
        ORDER BY uploaded_at DESC`,
     );
 
@@ -458,6 +470,53 @@ export const getBrochures = async (_req: Request, res: Response) => {
   }
 };
 
+export const uploadProductProfileImage = async (req: Request, res: Response) => {
+  const file = (req as Request & { file?: Express.Multer.File }).file;
+  if (!file) {
+    return res.status(400).json({
+      success: false,
+      message: "No file uploaded",
+    });
+  }
+
+  try {
+    const fileName = sanitizeFilename(file.originalname);
+    const filePath = `products/${Date.now()}-${fileName}`;
+
+    const { data, error } = await supabase.storage
+      .from("products")
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
+
+    if (error) {
+      logger.error("Supabase product image upload error", { error });
+      return res.status(500).json({
+        success: false,
+        message: "Failed to upload product image",
+      });
+    }
+
+    const url = await getProductImageUrl(data.path);
+    return res.json({
+      success: true,
+      data: {
+        image: {
+          file_url: data.path,
+          url,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error("Upload product image error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload product image",
+    });
+  }
+};
+
 // Get all machines (admin)
 export const getMachines = async (req: Request, res: Response) => {
   try {
@@ -469,10 +528,12 @@ export const getMachines = async (req: Request, res: Response) => {
         m.product_id,
         p.product_name,
         m.customer_id,
-        cu.first_name || ' ' || cu.last_name AS customer_name
+        COALESCE(cu.first_name || ' ' || cu.last_name, '') AS customer_name,
+        m.status,
+        m.created_at
        FROM machines m
-       JOIN product p ON m.product_id = p.product_id
-       JOIN customer_user cu ON m.customer_id = cu.customer_id
+       LEFT JOIN product p ON m.product_id = p.product_id
+       LEFT JOIN customer_user cu ON m.customer_id = cu.customer_id
        ORDER BY m.created_at DESC`,
     );
     return res.json({ success: true, data: { machines: result.rows } });
@@ -598,6 +659,15 @@ export const uploadGalleryImage = async (req: Request, res: Response) => {
   }
 
   try {
+    const machineResult = await pool.query(
+      `SELECT product_id FROM machines WHERE machine_id = $1`,
+      [machineId],
+    );
+    const productId = machineResult.rows[0]?.product_id ?? null;
+    if (!productId) {
+      return res.status(400).json({ success: false, message: "Missing product for machine" });
+    }
+
     const fileName = file.originalname.replace(/[^\w.-]+/g, "_");
     const filePath = `gallery/machine_${machineId}/${fileName}`;
 
@@ -608,9 +678,9 @@ export const uploadGalleryImage = async (req: Request, res: Response) => {
     }
 
     const insert = await pool.query(
-      `INSERT INTO machine_gallery (machine_id, image_url, uploaded_at)
-      VALUES ($1, $2, NOW()) RETURNING gallery_id, image_url, uploaded_at`,
-      [machineId, data.path],
+      `INSERT INTO machine_gallery (machine_id, product_id, image_url, uploaded_at)
+      VALUES (NULL, $1, $2, NOW()) RETURNING gallery_id, image_url, uploaded_at, product_id`,
+      [productId, data.path],
     );
 
     const { data: publicUrl } = supabase.storage.from("gallery").getPublicUrl(data.path);
@@ -633,6 +703,15 @@ export const uploadMachineVideo = async (req: Request, res: Response) => {
   }
 
   try {
+    const machineResult = await pool.query(
+      `SELECT product_id FROM machines WHERE machine_id = $1`,
+      [machineId],
+    );
+    const productId = machineResult.rows[0]?.product_id ?? null;
+    if (!productId) {
+      return res.status(400).json({ success: false, message: "Missing product for machine" });
+    }
+
     const safeType = String(videoType).toLowerCase().trim();
     const fileName = file.originalname.replace(/[^\w.-]+/g, "_");
     const filePath = `video/machine_${machineId}/${safeType}/${fileName}`;
@@ -647,10 +726,10 @@ export const uploadMachineVideo = async (req: Request, res: Response) => {
     }
 
     const insert = await pool.query(
-      `INSERT INTO machine_videos (machine_id, video_type, title, video_url, uploaded_at)
-      VALUES ($1, $2, $3, $4, NOW())
-      RETURNING video_id, machine_id, video_type, title, video_url, uploaded_at`,
-      [machineId, safeType, file.originalname, data.path],
+      `INSERT INTO machine_videos (machine_id, product_id, video_type, title, video_url, uploaded_at)
+      VALUES (NULL, $1, $2, $3, $4, NOW())
+      RETURNING video_id, machine_id, product_id, video_type, title, video_url, uploaded_at`,
+      [productId, safeType, file.originalname, data.path],
     );
 
     const { data: publicUrl } = supabase.storage.from("videos").getPublicUrl(data.path);

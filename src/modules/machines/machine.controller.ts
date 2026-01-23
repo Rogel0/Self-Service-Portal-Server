@@ -16,7 +16,7 @@ export const addMachine = async (req: Request, res: Response) => {
   try {
     await client.query("BEGIN");
 
-    const { customer_id, model_number, product_id } = req.body;
+    const { model_number, product_id } = req.body;
 
     const productId = product_id ?? null;
 
@@ -39,7 +39,7 @@ export const addMachine = async (req: Request, res: Response) => {
       (customer_id, product_id, model_number, registration_date, status, created_at)
       VALUES ($1, $2, $3, NOW(), 'active', NOW())
       RETURNING machine_id, customer_id, product_id, model_number, registration_date, status, created_at`,
-      [customer_id, productId, model_number]
+      [customerId, productId, model_number]
     )
 
     await client.query("COMMIT");
@@ -164,45 +164,45 @@ export const getMachineDetails = async (req: Request, res: Response) => {
     const manualsResult = await pool.query(
       `SELECT manual_id, title, file_url, uploaded_at
        FROM machine_manuals
-       WHERE machine_id = $1
+       WHERE machine_id = $1 OR product_id = $2
        ORDER BY uploaded_at DESC`,
-      [machineId]
+      [machineId, machine.product_id]
     );
 
     // Get gallery
     const galleryResult = await pool.query(
       `SELECT gallery_id, image_url, caption, uploaded_at
        FROM machine_gallery
-       WHERE machine_id = $1
+       WHERE machine_id = $1 OR product_id = $2
        ORDER BY uploaded_at DESC`,
-      [machineId]
+      [machineId, machine.product_id]
     );
 
     // Get brochures
     const brochuresResult = await pool.query(
       `SELECT brochure_id, title, file_url, uploaded_at
        FROM machine_brochures
-       WHERE machine_id = $1
+       WHERE machine_id = $1 OR product_id = $2
        ORDER BY uploaded_at DESC`,
-      [machineId]
+      [machineId, machine.product_id]
     );
 
     // Get videos
     const videosResult = await pool.query(
       `SELECT video_id, video_type, title, video_url, uploaded_at
        FROM machine_videos
-       WHERE machine_id = $1
+       WHERE machine_id = $1 OR product_id = $2
        ORDER BY uploaded_at DESC`,
-      [machineId]
+      [machineId, machine.product_id]
     );
 
     // Get specifications
     const specsResult = await pool.query(
       `SELECT spec_id, spec_name, spec_value
        FROM machine_specifications
-       WHERE machine_id = $1
+       WHERE machine_id = $1 OR product_id = $2
        ORDER BY spec_name`,
-      [machineId]
+      [machineId, machine.product_id]
     );
 
     // Get available parts for this product
@@ -250,10 +250,11 @@ export const addMachineAssets = async (req: Request, res: Response) => {
   }
 
   try {
+    await client.query("BEGIN");
 
-    // Verify machine ownership
+    // Verify machine ownership and get product_id
     const machineCheck = await client.query(
-      `SELECT machine_id FROM machines WHERE machine_id = $1 AND customer_id = $2`,
+      `SELECT machine_id, product_id FROM machines WHERE machine_id = $1 AND customer_id = $2`,
       [machineId, customerId],
     );
     if (machineCheck.rows.length === 0) {
@@ -264,14 +265,15 @@ export const addMachineAssets = async (req: Request, res: Response) => {
       });
     }
 
+    const productId = machineCheck.rows[0]?.product_id ?? null;
     const { manuals, gallery, brochures, videos, specifications } = req.body;
 
     if (manuals?.length) {
       for (const item of manuals) {
         await client.query(
-          `INSERT INTO machine_manuals (machine_id, title, file_url, uploaded_at)
-           VALUES ($1, $2, $3, NOW())`,
-          [machineId, item.title, item.file_url],
+          `INSERT INTO machine_manuals (machine_id, product_id, title, file_url, uploaded_at)
+           VALUES ($1, $2, $3, $4, NOW())`,
+          [machineId, productId, item.title, item.file_url],
         );
       }
     }
@@ -279,9 +281,9 @@ export const addMachineAssets = async (req: Request, res: Response) => {
     if (gallery?.length) {
       for (const item of gallery) {
         await client.query(
-          `INSERT INTO machine_gallery (machine_id, image_url, caption, uploaded_at)
-           VALUES ($1, $2, $3, NOW())`,
-          [machineId, item.image_url, item.caption ?? null],
+          `INSERT INTO machine_gallery (machine_id, product_id, image_url, caption, uploaded_at)
+           VALUES ($1, $2, $3, $4, NOW())`,
+          [machineId, productId, item.image_url, item.caption ?? null],
         );
       }
     }
@@ -289,9 +291,9 @@ export const addMachineAssets = async (req: Request, res: Response) => {
     if (brochures?.length) {
       for (const item of brochures) {
         await client.query(
-          `INSERT INTO machine_brochures (machine_id, title, file_url, uploaded_at)
-           VALUES ($1, $2, $3, NOW())`,
-          [machineId, item.title, item.file_url],
+          `INSERT INTO machine_brochures (machine_id, product_id, title, file_url, uploaded_at)
+           VALUES ($1, $2, $3, $4, NOW())`,
+          [machineId, productId, item.title, item.file_url],
         );
       }
     }
@@ -299,9 +301,9 @@ export const addMachineAssets = async (req: Request, res: Response) => {
     if (videos?.length) {
       for (const item of videos) {
         await client.query(
-          `INSERT INTO machine_videos (machine_id, video_type, title, video_url, uploaded_at)
-           VALUES ($1, $2, $3, $4, NOW())`,
-          [machineId, item.video_type, item.title, item.video_url],
+          `INSERT INTO machine_videos (machine_id, product_id, video_type, title, video_url, uploaded_at)
+           VALUES ($1, $2, $3, $4, $5, NOW())`,
+          [machineId, productId, item.video_type, item.title, item.video_url],
         );
       }
     }
@@ -309,9 +311,9 @@ export const addMachineAssets = async (req: Request, res: Response) => {
     if (specifications?.length) {
       for (const item of specifications) {
         await client.query(
-          `INSERT INTO machine_specifications (machine_id, spec_name, spec_value)
-           VALUES ($1, $2, $3)`,
-          [machineId, item.spec_name, item.spec_value],
+          `INSERT INTO machine_specifications (machine_id, product_id, spec_name, spec_value)
+           VALUES ($1, $2, $3, $4)`,
+          [machineId, productId, item.spec_name, item.spec_value],
         );
       }
     }
@@ -336,16 +338,26 @@ export const addMachineAssets = async (req: Request, res: Response) => {
 
 export const addMachineForAdmin = async (req: Request, res: Response) => {
   const client = await pool.connect();
-  const { model_number, product_id } = req.body;
+  const {
+    model_number,
+    product_id,
+    product_name,
+    category,
+    status,
+    description,
+    profile_image_url,
+  } = req.body;
 
   try {
     await client.query("BEGIN");
 
-    // Verify product exists
-    if (product_id) {
+    let productId: number | null = product_id ?? null;
+
+    // Verify product exists or create a new one for the catalog
+    if (productId) {
       const productCheck = await client.query(
         `SELECT product_id FROM product WHERE product_id = $1`,
-        [product_id],
+        [productId],
       );
       if (productCheck.rows.length === 0) {
         await client.query("ROLLBACK");
@@ -354,6 +366,22 @@ export const addMachineForAdmin = async (req: Request, res: Response) => {
           message: "Invalid product",
         });
       }
+    } else {
+      const resolvedProductName = (product_name || "").trim() || model_number;
+      const createdProduct = await client.query(
+        `INSERT INTO product
+         (product_name, product_desc, category, status, profile_image_url, created_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         RETURNING product_id`,
+        [
+          resolvedProductName,
+          description || null,
+          category || null,
+          status || null,
+          profile_image_url || null,
+        ],
+      );
+      productId = createdProduct.rows[0]?.product_id ?? null;
     }
 
     const result = await client.query(
@@ -361,7 +389,7 @@ export const addMachineForAdmin = async (req: Request, res: Response) => {
        (customer_id, product_id, model_number, registration_date, status, created_at)
        VALUES ($1, $2, $3, NOW(), 'active', NOW())
        RETURNING machine_id, customer_id, product_id, model_number, registration_date, status, created_at`,
-      [null, product_id ?? null, model_number],
+      [null, productId, model_number],
     );
 
     await client.query("COMMIT");
@@ -407,36 +435,49 @@ export const addMachineAssetsForAdmin = async (
 
     const { manuals, gallery, brochures, videos, specifications, manual_ids, brochure_ids } = req.body;
 
+    const machineRow = await client.query(
+      `SELECT product_id FROM machines WHERE machine_id = $1`,
+      [machineId],
+    );
+    const productId = machineRow.rows[0]?.product_id ?? null;
+    if (!productId) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message: "Machine has no product",
+      });
+    }
+
     if (manual_ids?.length) {
       await client.query(
-        `UPDATE machine_manuals SET machine_id = $1 WHERE manual_id = ANY($2::int[])`,
-        [machineId, manual_ids],
+        `UPDATE machine_manuals SET product_id = $1 WHERE manual_id = ANY($2::int[])`,
+        [productId, manual_ids],
       )
     }
 
     if (gallery?.length) {
       for (const item of gallery) {
         await client.query(
-          `INSERT INTO machine_gallery (machine_id, image_url, caption, uploaded_at)
-           VALUES ($1, $2, $3, NOW())`,
-          [machineId, item.image_url, item.caption ?? null],
+          `INSERT INTO machine_gallery (machine_id, product_id, image_url, caption, uploaded_at)
+           VALUES ($1, $2, $3, $4, NOW())`,
+          [machineId, productId, item.image_url, item.caption ?? null],
         );
       }
     }
 
     if (brochure_ids?.length) {
       await client.query(
-        `UPDATE machine_brochures SET machine_id = $1 WHERE brochure_id = ANY($2::int[])`,
-        [machineId, brochure_ids],
+        `UPDATE machine_brochures SET product_id = $1 WHERE brochure_id = ANY($2::int[])`,
+        [productId, brochure_ids],
       )
     }
 
     if (videos?.length) {
       for (const item of videos) {
         await client.query(
-          `INSERT INTO machine_videos (machine_id, video_type, title, video_url, uploaded_at)
-           VALUES ($1, $2, $3, $4, NOW())`,
-          [machineId, item.video_type, item.title, item.video_url],
+          `INSERT INTO machine_videos (machine_id, product_id, video_type, title, video_url, uploaded_at)
+           VALUES ($1, $2, $3, $4, $5, NOW())`,
+          [machineId, productId, item.video_type, item.title, item.video_url],
         );
       }
     }
@@ -444,9 +485,9 @@ export const addMachineAssetsForAdmin = async (
     if (specifications?.length) {
       for (const item of specifications) {
         await client.query(
-          `INSERT INTO machine_specifications (machine_id, spec_name, spec_value)
-           VALUES ($1, $2, $3)`,
-          [machineId, item.spec_name, item.spec_value],
+          `INSERT INTO machine_specifications (machine_id, product_id, spec_name, spec_value)
+           VALUES ($1, $2, $3, $4)`,
+          [machineId, productId, item.spec_name, item.spec_value],
         );
       }
     }

@@ -30,17 +30,16 @@ beforeEach(() => {
 });
 
 describe("addMachineForAdmin", () => {
-    it("creates a machine without ownership details", async () => {
+    it("creates a machine and catalogs it when no product_id", async () => {
         const req = {
             body: {
                 model_number: "MODEL-001",
-                product_id: 10,
             },
         } as Request;
 
         query
             .mockResolvedValueOnce({}) // BEGIN
-            .mockResolvedValueOnce({ rows: [{ product_id: 10 }] }) // product check
+            .mockResolvedValueOnce({ rows: [{ product_id: 10 }] }) // create product
             .mockResolvedValueOnce({
                 rows: [
                     {

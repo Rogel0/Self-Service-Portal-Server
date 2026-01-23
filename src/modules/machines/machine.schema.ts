@@ -7,6 +7,14 @@ export const addMachineSchema = z.object({
 
 export const addMachineAdminSchema = addMachineSchema;
 
+export const addMachineAdminProductSchema = addMachineAdminSchema.extend({
+  product_name: z.string().optional(),
+  category: z.string().optional(),
+  status: z.string().optional(),
+  description: z.string().optional(),
+  profile_image_url: z.string().url().optional(),
+});
+
 export const updateMachineSchema = z.object({
   purchase_date: z.string().optional(),
   status: z.enum(["active", "inactive", "maintenance"]).optional(),
