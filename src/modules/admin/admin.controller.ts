@@ -588,3 +588,78 @@ export const updateEmployee = async (req: Request, res: Response) => {
       .json({ success: false, message: "Failed to update employee" });
   }
 };
+
+export const uploadGalleryImage = async (req: Request, res: Response) => {
+  const file = (req as Request & { file?: Express.Multer.File }).file;
+  const { machineId } = req.body;
+
+  if(!file || !machineId) {
+    return res.status(400).json({ success: false, message: "Missing file or machine id" });
+  }
+
+  try {
+    const fileName = file.originalname.replace(/[^\w.-]+/g, "_");
+    const filePath = `gallery/machine_${machineId}/${fileName}`;
+
+    const { data, error } = await supabase.storage.from("gallery").upload(filePath, file.buffer, { contentType: file.mimetype, upsert: false });
+
+    if (error) {
+      return res.status(500).json({ success: false, message: "Upload failed" });
+    }
+
+    const insert = await pool.query(
+      `INSERT INTO machine_gallery (machine_id, image_url, uploaded_at)
+      VALUES ($1, $2, NOW()) RETURNING gallery_id, image_url, uploaded_at`,
+      [machineId, data.path],
+    );
+
+    const { data: publicUrl } = supabase.storage.from("gallery").getPublicUrl(data.path);
+
+    return res.json({
+      success: true,
+      data: { ...insert.rows[0], url: publicUrl.publicUrl },
+    });
+  } catch {
+    return res.status(500).json({ success: false, message: "Upload failed" });
+  }
+};
+
+export const uploadMachineVideo = async (req: Request, res: Response) => {
+  const file = (req as Request & { file?: Express.Multer.File }).file;
+  const { machineId, videoType } = req.body;
+
+  if (!file || !machineId || !videoType) {
+    return res.status(400).json({ success: false, message: "Missing file, machine id, or video type" });
+  }
+
+  try {
+    const safeType = String(videoType).toLowerCase().trim();
+    const fileName = file.originalname.replace(/[^\w.-]+/g, "_");
+    const filePath = `video/machine_${machineId}/${safeType}/${fileName}`;
+
+    const { data, error } = await supabase.storage.from("videos").upload(filePath, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false,
+    });
+
+    if (error) {
+      return res.status(500).json({ success: false, message: "Upload failed" });
+    }
+
+    const insert = await pool.query(
+      `INSERT INTO machine_videos (machine_id, video_type, title, video_url, uploaded_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      RETURNING video_id, machine_id, video_type, title, video_url, uploaded_at`,
+      [machineId, safeType, file.originalname, data.path],
+    );
+
+    const { data: publicUrl } = supabase.storage.from("videos").getPublicUrl(data.path);
+
+    return res.json({
+      success: true,
+      data: { ...insert.rows[0], url: publicUrl.publicUrl },
+    });
+  } catch {
+    return res.status(500).json({ success: false, message: "Upload failed" });
+  }
+};

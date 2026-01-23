@@ -1,15 +1,11 @@
 import { z } from "zod";
 
 export const addMachineSchema = z.object({
-  serial_number: z.string().min(1, "Serial number is required"),
   model_number: z.string().min(1, "Model number is required"),
-  product_id: z.number().int().positive("Product ID must be a positive integer"),
-  purchase_date: z.string().optional(),
+  product_id: z.number().int().positive().optional(),
 });
 
-export const addMachineAdminSchema = addMachineSchema.extend({
-  customer_id: z.number().int().positive("Customer ID is required"),
-});
+export const addMachineAdminSchema = addMachineSchema;
 
 export const updateMachineSchema = z.object({
   purchase_date: z.string().optional(),
@@ -58,4 +54,6 @@ export const addMachineAssetsSchema = z.object({
       }),
     )
     .optional(),
+    manual_ids: z.array(z.number().int().positive()).optional(),
+    brochure_ids: z.array(z.number().int().positive()).optional(),
 });

@@ -70,4 +70,19 @@ router.post(
   addMachineAssetsForAdmin,
 );
 
+router.post(
+  "/gallery/upload",
+  employeeAuth,
+  upload.single("file"),
+  controller.uploadGalleryImage,
+);
+
+router.post(
+  "/videos/upload",
+  employeeAuth,
+  upload.single("file"),
+  controller.uploadMachineVideo,
+);
+
+
 export default router;

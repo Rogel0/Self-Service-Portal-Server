@@ -16,59 +16,31 @@ export const addMachine = async (req: Request, res: Response) => {
   try {
     await client.query("BEGIN");
 
-    const { serial_number, model_number, product_id, purchase_date } = req.body;
+    const { customer_id, model_number, product_id } = req.body;
 
-    // Check if machine already exists (by serial number)
-    const existingMachine = await client.query(
-      `SELECT machine_id, customer_id FROM machines WHERE serial_number = $1`,
-      [serial_number]
-    );
+    const productId = product_id ?? null;
 
-    if (existingMachine.rows.length > 0) {
-      // Machine exists, check if it belongs to another customer
-      if (existingMachine.rows[0].customer_id !== customerId) {
+    if (productId) {
+      const productCheck = await client.query(
+        `SELECT product_id FROM product WHERE product_id = $1`,
+        [productId],
+      );
+      if (productCheck.rows.length === 0) {
         await client.query("ROLLBACK");
         return res.status(400).json({
           success: false,
-          message: "This machine is already registered to another account",
-        });
-      } else {
-        await client.query("ROLLBACK");
-        return res.status(400).json({
-          success: false,
-          message: "This machine is already registered to your account",
+          message: "Invalid product",
         });
       }
     }
 
-    // Verify product exists
-    const productCheck = await client.query(
-      `SELECT product_id FROM product WHERE product_id = $1`,
-      [product_id]
-    );
-
-    if (productCheck.rows.length === 0) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        success: false,
-        message: "Invalid product",
-      });
-    }
-
-    // Insert machine
     const result = await client.query(
-      `INSERT INTO machines 
-       (customer_id, product_id, serial_number, model_number, purchase_date, registration_date, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW(), 'active', NOW())
-       RETURNING machine_id, customer_id, product_id, serial_number, model_number, purchase_date, registration_date, status, created_at`,
-      [
-        customerId,
-        product_id,
-        serial_number,
-        model_number,
-        purchase_date || null,
-      ]
-    );
+      `INSERT INTO machines
+      (customer_id, product_id, model_number, registration_date, status, created_at)
+      VALUES ($1, $2, $3, NOW(), 'active', NOW())
+      RETURNING machine_id, customer_id, product_id, model_number, registration_date, status, created_at`,
+      [customer_id, productId, model_number]
+    )
 
     await client.query("COMMIT");
 
@@ -364,68 +336,32 @@ export const addMachineAssets = async (req: Request, res: Response) => {
 
 export const addMachineForAdmin = async (req: Request, res: Response) => {
   const client = await pool.connect();
-  const {
-    customer_id,
-    serial_number,
-    model_number,
-    product_id,
-    purchase_date,
-  } = req.body;
+  const { model_number, product_id } = req.body;
 
   try {
     await client.query("BEGIN");
 
-    // Verify customer exists
-    const customerCheck = await client.query(
-      `SELECT customer_id FROM customer_user WHERE customer_id = $1`,
-      [customer_id],
-    );
-    if (customerCheck.rows.length === 0) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        success: false,
-        message: "Invalid customer",
-      });
-    }
-
-    // Check if machine already exists (by serial number)
-    const existingMachine = await client.query(
-      `SELECT machine_id FROM machines WHERE serial_number = $1`,
-      [serial_number],
-    );
-    if (existingMachine.rows.length > 0) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        success: false,
-        message: "Serial number already exists",
-      });
-    }
-
     // Verify product exists
-    const productCheck = await client.query(
-      `SELECT product_id FROM product WHERE product_id = $1`,
-      [product_id],
-    );
-    if (productCheck.rows.length === 0) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        success: false,
-        message: "Invalid product",
-      });
+    if (product_id) {
+      const productCheck = await client.query(
+        `SELECT product_id FROM product WHERE product_id = $1`,
+        [product_id],
+      );
+      if (productCheck.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          success: false,
+          message: "Invalid product",
+        });
+      }
     }
 
     const result = await client.query(
       `INSERT INTO machines 
-       (customer_id, product_id, serial_number, model_number, purchase_date, registration_date, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW(), 'active', NOW())
-       RETURNING machine_id, customer_id, product_id, serial_number, model_number, purchase_date, registration_date, status, created_at`,
-      [
-        customer_id,
-        product_id,
-        serial_number,
-        model_number,
-        purchase_date || null,
-      ],
+       (customer_id, product_id, model_number, registration_date, status, created_at)
+       VALUES ($1, $2, $3, NOW(), 'active', NOW())
+       RETURNING machine_id, customer_id, product_id, model_number, registration_date, status, created_at`,
+      [null, product_id ?? null, model_number],
     );
 
     await client.query("COMMIT");
@@ -469,16 +405,13 @@ export const addMachineAssetsForAdmin = async (
       });
     }
 
-    const { manuals, gallery, brochures, videos, specifications } = req.body;
+    const { manuals, gallery, brochures, videos, specifications, manual_ids, brochure_ids } = req.body;
 
-    if (manuals?.length) {
-      for (const item of manuals) {
-        await client.query(
-          `INSERT INTO machine_manuals (machine_id, title, file_url, uploaded_at)
-           VALUES ($1, $2, $3, NOW())`,
-          [machineId, item.title, item.file_url],
-        );
-      }
+    if (manual_ids?.length) {
+      await client.query(
+        `UPDATE machine_manuals SET machine_id = $1 WHERE manual_id = ANY($2::int[])`,
+        [machineId, manual_ids],
+      )
     }
 
     if (gallery?.length) {
@@ -491,14 +424,11 @@ export const addMachineAssetsForAdmin = async (
       }
     }
 
-    if (brochures?.length) {
-      for (const item of brochures) {
-        await client.query(
-          `INSERT INTO machine_brochures (machine_id, title, file_url, uploaded_at)
-           VALUES ($1, $2, $3, NOW())`,
-          [machineId, item.title, item.file_url],
-        );
-      }
+    if (brochure_ids?.length) {
+      await client.query(
+        `UPDATE machine_brochures SET machine_id = $1 WHERE brochure_id = ANY($2::int[])`,
+        [machineId, brochure_ids],
+      )
     }
 
     if (videos?.length) {
