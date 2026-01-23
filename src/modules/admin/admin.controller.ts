@@ -18,6 +18,11 @@ export const getPendingRegistrations = async (req: Request, res: Response) => {
         phone,
         landline,
         username,
+        initial_product_id,
+        initial_product_name,
+        initial_model_number,
+        initial_serial_number,
+        initial_purchase_date,
         verification_status,
         approved,
         created_at
@@ -52,11 +57,91 @@ export const approveRegistration = async (req: Request, res: Response) => {
     });
   }
 
+  let client;
   try {
-    const client = await pool.connect();
+    client = await pool.connect();
     await client.query("BEGIN");
 
     if (approved) {
+      const registrationResult = await client.query(
+        `SELECT initial_product_id,
+                initial_product_name,
+                initial_model_number,
+                initial_serial_number,
+                initial_purchase_date
+         FROM customer_user
+         WHERE customer_id = $1`,
+        [customerId],
+      );
+
+      if (registrationResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(404).json({
+          success: false,
+          message: "Customer registration not found",
+        });
+      }
+
+      const registration = registrationResult.rows[0];
+      let productId: number | null = null;
+
+      if (registration.initial_product_id) {
+        const productResult = await client.query(
+          `SELECT product_id
+           FROM product
+           WHERE product_id = $1
+           LIMIT 1`,
+          [registration.initial_product_id],
+        );
+        if (productResult.rows.length === 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res.status(400).json({
+            success: false,
+            message: "Selected product no longer exists",
+          });
+        }
+        productId = productResult.rows[0].product_id;
+      } else if (registration.initial_product_name) {
+        const productResult = await client.query(
+          `SELECT product_id
+           FROM product
+           WHERE product_name = $1
+           LIMIT 1`,
+          [registration.initial_product_name],
+        );
+        if (productResult.rows.length === 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res.status(400).json({
+            success: false,
+            message: "Selected product no longer exists",
+          });
+        }
+        productId = productResult.rows[0].product_id;
+      } else {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(400).json({
+          success: false,
+          message: "No product selected for registration",
+        });
+      }
+
+      await client.query(
+        `INSERT INTO machines
+        (customer_id, product_id, serial_number, model_number, purchase_date, registration_date, status, created_at)
+        VALUES ($1, $2, $3, $4, $5, NOW(), 'active', NOW())`,
+        [
+          customerId,
+          productId,
+          registration.initial_serial_number,
+          registration.initial_model_number,
+          registration.initial_purchase_date || null,
+        ],
+      );
+
       // Generate temporary password
       const tempPassword = Math.random().toString(36).slice(-12) + "A1!";
       const hashedPassword = await hashPassword(tempPassword);
@@ -125,7 +210,17 @@ export const approveRegistration = async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
+    if (client) {
+      await client.query("ROLLBACK");
+      client.release();
+    }
     logger.error("Approve registration error", { error });
+    if ((error as any)?.code === "23505") {
+      return res.status(400).json({
+        success: false,
+        message: "Serial number already exists",
+      });
+    }
     return res.status(500).json({
       success: false,
       message: "Failed to process registration",

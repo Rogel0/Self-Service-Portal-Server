@@ -19,7 +19,11 @@ export const register = async (req: Request, res: Response) => {
       phone,
       landline,
       username,
-      password,
+      initial_product_id,
+      initial_product_name,
+      initial_model_number,
+      initial_serial_number,
+      initial_purchase_date,
     } = req.body;
 
     // Check if username or email already exists
@@ -37,14 +41,12 @@ export const register = async (req: Request, res: Response) => {
       });
     }
 
-    // Hash password
-    const hashedPassword = await hashPassword(password);
-
     // Insert customer with pending verification
     const result = await client.query(
       `INSERT INTO customer_user 
-       (first_name, last_name, middle_name, company_name, email, phone, landline, username, password, verification_status, approved, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', false, NOW(), NOW())
+       (first_name, last_name, middle_name, company_name, email, phone, landline, username, password, verification_status, approved, created_at, updated_at,
+        initial_product_id, initial_product_name, initial_model_number, initial_serial_number, initial_purchase_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL, 'pending', false, NOW(), NOW(), $9, $10, $11, $12, $13)
        RETURNING customer_id, first_name, last_name, email, username, verification_status, approved, created_at`,
       [
         first_name,
@@ -55,7 +57,11 @@ export const register = async (req: Request, res: Response) => {
         phone,
         landline || null,
         username,
-        hashedPassword,
+        initial_product_id,
+        initial_product_name,
+        initial_model_number,
+        initial_serial_number,
+        initial_purchase_date || null,
       ]
     );
 
