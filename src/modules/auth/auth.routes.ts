@@ -156,6 +156,9 @@ router.get("/me", (req: Request, res: Response) => {
     return res.status(401).json({ success: false, message: "No token" });
   try {
     const payload = verifyToken(token);
+    if (!payload?.employee_id) {
+      throw new Error("Not an employee token");
+    }
     return pool
       .query(
         `SELECT e.employee_id, e.firstname, e.lastname, e.middlename, e.role_id, e.department_id,

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import pool from "../../config/database";
 import logger from "../../utils/logger";
+import { supabase } from "../../utils/supabase";
 
 export const addMachine = async (req: Request, res: Response) => {
   const client = await pool.connect();
@@ -89,27 +90,36 @@ export const getMyMachines = async (req: Request, res: Response) => {
 
   try {
     const result = await pool.query(
-      `SELECT 
+      `SELECT
         m.machine_id,
         m.serial_number,
         m.model_number,
         m.purchase_date,
-        m.registration_date,
         m.status,
         m.created_at,
         p.product_id,
         p.product_name,
-        p.product_desc
-       FROM machines m
-       JOIN product p ON m.product_id = p.product_id
-       WHERE m.customer_id = $1
-       ORDER BY m.created_at DESC`,
+        p.product_desc,
+        p.profile_image_url
+      FROM machines m
+      JOIN product p ON m.product_id = p.product_id
+      WHERE m.customer_id = $1
+      ORDER BY m.created_at DESC`,
       [customerId]
+    );
+
+    const machines = await Promise.all(
+      result.rows.map(async (row) => ({
+        ...row,
+        profile_image_url: row.profile_image_url
+          ? await resolveSignedUrl("products", row.profile_image_url)
+          : null,
+      })),
     );
 
     return res.json({
       success: true,
-      data: { machines: result.rows },
+      data: { machines },
     });
   } catch (error) {
     logger.error("Get machines error", { error });
@@ -118,6 +128,69 @@ export const getMyMachines = async (req: Request, res: Response) => {
       message: "Failed to fetch machines",
     });
   }
+};
+
+const extractStoragePath = (bucket: string, fileUrlOrPath: string) => {
+  if (!fileUrlOrPath.startsWith("http")) return fileUrlOrPath;
+  try {
+    const url = new URL(fileUrlOrPath);
+    const pathname = url.pathname;
+    const markers = [
+      `/storage/v1/object/public/${bucket}/`,
+      `/storage/v1/object/sign/${bucket}/`,
+      `/object/public/${bucket}/`,
+      `/object/sign/${bucket}/`,
+    ];
+    for (const marker of markers) {
+      if (pathname.includes(marker)) {
+        return pathname.split(marker)[1];
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
+
+const normalizeStoragePath = (bucket: string, fileUrlOrPath: string | null) => {
+  if (!fileUrlOrPath) return null;
+  let path = fileUrlOrPath;
+  if (path.startsWith(`${bucket}/${bucket}/`)) {
+    path = path.slice(bucket.length + 1);
+  }
+  return path;
+};
+
+const resolvePublicUrl = (bucket: string, fileUrlOrPath: string) => {
+  const resolvedPath = normalizeStoragePath(
+    bucket,
+    extractStoragePath(bucket, fileUrlOrPath),
+  );
+  if (!resolvedPath) return fileUrlOrPath;
+  const { data } = supabase.storage.from(bucket).getPublicUrl(resolvedPath);
+  return data.publicUrl;
+};
+
+const resolveSignedUrl = async (bucket: string, fileUrlOrPath: string) => {
+  const resolvedPath = normalizeStoragePath(
+    bucket,
+    extractStoragePath(bucket, fileUrlOrPath),
+  );
+  if (!resolvedPath) return fileUrlOrPath;
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(resolvedPath, 60 * 10);
+  if (!error) return data.signedUrl;
+
+  const rawPath = extractStoragePath(bucket, fileUrlOrPath);
+  if (rawPath && rawPath !== resolvedPath) {
+    const fallback = await supabase.storage
+      .from(bucket)
+      .createSignedUrl(rawPath, 60 * 10);
+    if (!fallback.error) return fallback.data.signedUrl;
+  }
+
+  return resolvePublicUrl(bucket, resolvedPath);
 };
 
 export const getMachineDetails = async (req: Request, res: Response) => {
