@@ -217,7 +217,8 @@ export const getMachineDetails = async (req: Request, res: Response) => {
         m.created_at,
         p.product_id,
         p.product_name,
-        p.product_desc
+        p.product_desc,
+        p.profile_image_url
        FROM machines m
        JOIN product p ON m.product_id = p.product_id
        WHERE m.machine_id = $1 AND m.customer_id = $2`,
@@ -232,6 +233,12 @@ export const getMachineDetails = async (req: Request, res: Response) => {
     }
 
     const machine = machineResult.rows[0];
+    const resolvedMachine = {
+      ...machine,
+      profile_image_url: machine.profile_image_url
+        ? await resolveSignedUrl("products", machine.profile_image_url)
+        : null,
+    };
 
     // Get manuals
     const manualsResult = await pool.query(
@@ -287,15 +294,51 @@ export const getMachineDetails = async (req: Request, res: Response) => {
       [machine.product_id]
     );
 
+    const manuals = await Promise.all(
+      manualsResult.rows.map(async (row) => ({
+        ...row,
+        file_url: row.file_url
+          ? await resolveSignedUrl("products", row.file_url)
+          : row.file_url,
+      })),
+    );
+
+    const gallery = await Promise.all(
+      galleryResult.rows.map(async (row) => ({
+        ...row,
+        image_url: row.image_url
+          ? await resolveSignedUrl("products", row.image_url)
+          : row.image_url,
+      })),
+    );
+
+    const brochures = await Promise.all(
+      brochuresResult.rows.map(async (row) => ({
+        ...row,
+        file_url: row.file_url
+          ? await resolveSignedUrl("products", row.file_url)
+          : row.file_url,
+      })),
+    );
+
+    const videos = await Promise.all(
+      videosResult.rows.map(async (row) => ({
+        ...row,
+        video_url: row.video_url
+          ? await resolveSignedUrl("products", row.video_url)
+          : row.video_url,
+      })),
+    );
+
     return res.json({
       success: true,
       data: {
         machine: {
-          ...machine,
-          manuals: manualsResult.rows,
-          gallery: galleryResult.rows,
-          brochures: brochuresResult.rows,
-          videos: videosResult.rows,
+          ...resolvedMachine,
+          manuals,
+          gallery,
+          brochures,
+          videos,
           specifications: specsResult.rows,
           parts: partsResult.rows,
         },
