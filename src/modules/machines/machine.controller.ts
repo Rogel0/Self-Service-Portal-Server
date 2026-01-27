@@ -298,7 +298,7 @@ export const getMachineDetails = async (req: Request, res: Response) => {
       manualsResult.rows.map(async (row) => ({
         ...row,
         file_url: row.file_url
-          ? await resolveSignedUrl("products", row.file_url)
+          ? await resolveSignedUrl("manuals", row.file_url)
           : row.file_url,
       })),
     );
@@ -307,7 +307,7 @@ export const getMachineDetails = async (req: Request, res: Response) => {
       galleryResult.rows.map(async (row) => ({
         ...row,
         image_url: row.image_url
-          ? await resolveSignedUrl("products", row.image_url)
+          ? await resolveSignedUrl("gallery", row.image_url)
           : row.image_url,
       })),
     );
@@ -316,7 +316,7 @@ export const getMachineDetails = async (req: Request, res: Response) => {
       brochuresResult.rows.map(async (row) => ({
         ...row,
         file_url: row.file_url
-          ? await resolveSignedUrl("products", row.file_url)
+          ? await resolveSignedUrl("brochures", row.file_url)
           : row.file_url,
       })),
     );
@@ -325,7 +325,7 @@ export const getMachineDetails = async (req: Request, res: Response) => {
       videosResult.rows.map(async (row) => ({
         ...row,
         video_url: row.video_url
-          ? await resolveSignedUrl("products", row.video_url)
+          ? await resolveSignedUrl("videos", row.video_url)
           : row.video_url,
       })),
     );

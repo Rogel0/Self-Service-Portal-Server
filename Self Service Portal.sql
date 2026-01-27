@@ -1044,5 +1044,48 @@ ALTER TABLE ONLY public.shipment_tracking
 -- PostgreSQL database dump complete
 --
 
+-- Permission tables (per-employee overrides + department defaults)
+CREATE TABLE IF NOT EXISTS public.department_permission (
+    department_id integer NOT NULL,
+    permission_key text NOT NULL,
+    allowed boolean NOT NULL DEFAULT false,
+    created_at timestamp without time zone DEFAULT NOW(),
+    updated_at timestamp without time zone DEFAULT NOW(),
+    CONSTRAINT department_permission_pkey PRIMARY KEY (department_id, permission_key),
+    CONSTRAINT department_permission_department_id_fkey FOREIGN KEY (department_id)
+      REFERENCES public.department (dept_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.employee_permission (
+    employee_id integer NOT NULL,
+    permission_key text NOT NULL,
+    allowed boolean NOT NULL,
+    created_at timestamp without time zone DEFAULT NOW(),
+    updated_at timestamp without time zone DEFAULT NOW(),
+    CONSTRAINT employee_permission_pkey PRIMARY KEY (employee_id, permission_key),
+    CONSTRAINT employee_permission_employee_id_fkey FOREIGN KEY (employee_id)
+      REFERENCES public.employee (employee_id)
+);
+
+-- Seed default: Admin department can manage machines
+INSERT INTO public.department_permission (department_id, permission_key, allowed)
+SELECT d.dept_id, p.permission_key, true
+FROM public.department d
+JOIN (
+  VALUES
+    ('machines_manage'),
+    ('machines_add'),
+    ('manuals_manage'),
+    ('brochures_manage'),
+    ('products_manage'),
+    ('tracking_manage'),
+    ('account_requests_manage'),
+    ('parts_requests_manage'),
+    ('quotes_manage')
+) AS p(permission_key) ON true
+WHERE LOWER(d.dept_name) = 'admin'
+ON CONFLICT (department_id, permission_key)
+DO UPDATE SET allowed = EXCLUDED.allowed, updated_at = NOW();
+
 \unrestrict SspFafX7AkOvlekRxLu62om7wZyz6isWpvZdfaKUhp69iOoA4V6Qiajugd8AnaI
 

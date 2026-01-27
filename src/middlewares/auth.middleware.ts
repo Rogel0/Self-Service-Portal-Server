@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import pool from "../config/database";
 import {
   EmployeeTokenPayload,
   CustomerTokenPayload,
@@ -64,6 +65,48 @@ export const requireRole = (...allowedRoleIds: number[]) => {
       return res.status(403).json({ success: false, message: "Access denied" });
     }
     return next();
+  };
+};
+
+export const requirePermission = (permissionKey: string) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.employee) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Authentication required" });
+    }
+
+    try {
+      const result = await pool.query(
+        `SELECT 
+          ep.allowed AS employee_allowed,
+          dp.allowed AS dept_allowed
+         FROM employee e
+         LEFT JOIN employee_permission ep
+           ON e.employee_id = ep.employee_id
+          AND ep.permission_key = $1
+         LEFT JOIN department_permission dp
+           ON e.department_id = dp.department_id
+          AND dp.permission_key = $1
+         WHERE e.employee_id = $2`,
+        [permissionKey, req.employee.employee_id],
+      );
+
+      const row = result.rows[0];
+      const allowed = row?.employee_allowed ?? row?.dept_allowed ?? false;
+
+      if (!allowed) {
+        return res.status(403).json({ success: false, message: "Access denied" });
+      }
+
+      return next();
+    } catch (err) {
+      logger.error("Permission check failed", { err, permissionKey });
+      return res.status(500).json({
+        success: false,
+        message: "Failed to verify permissions",
+      });
+    }
   };
 };
 

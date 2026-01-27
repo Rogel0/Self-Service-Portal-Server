@@ -2,7 +2,11 @@ import express from "express";
 import * as controller from "./admin.controller";
 import validate from "../../middlewares/validate.middleware";
 import multer from "multer";
-import { createEmployeeSchema, updateEmployeeSchema } from "./admin-user.schema";
+import {
+  createEmployeeSchema,
+  updateEmployeeSchema,
+  updateEmployeePermissionSchema,
+} from "./admin-user.schema";
 import {
   addMachineAdminProductSchema,
   addMachineAssetsSchema,
@@ -11,17 +15,41 @@ import {
   addMachineForAdmin,
   addMachineAssetsForAdmin,
 } from "../machines/machine.controller";
-import { employeeAuth } from "../../middlewares/auth.middleware";
+import { employeeAuth, requirePermission } from "../../middlewares/auth.middleware";
 
 const router = express.Router();
+const requireMachinesManage = requirePermission("machines_manage");
+const requireMachinesAdd = requirePermission("machines_add");
+const requireManualsManage = requirePermission("manuals_manage");
+const requireBrochuresManage = requirePermission("brochures_manage");
+const requireProductsManage = requirePermission("products_manage");
+const requireTrackingManage = requirePermission("tracking_manage");
+const requireAccountRequestsManage = requirePermission("account_requests_manage");
+const requirePartsRequestsManage = requirePermission("parts_requests_manage");
+const requireQuotesManage = requirePermission("quotes_manage");
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 },
 });
 
-router.get("/registrations/pending", employeeAuth, controller.getPendingRegistrations);
-router.post("/registrations/:customerId/approve", employeeAuth, controller.approveRegistration);
-router.get("/parts-requests", employeeAuth, controller.getAllPartsRequests);
+router.get(
+  "/registrations/pending",
+  employeeAuth,
+  requireAccountRequestsManage,
+  controller.getPendingRegistrations,
+);
+router.post(
+  "/registrations/:customerId/approve",
+  employeeAuth,
+  requireAccountRequestsManage,
+  controller.approveRegistration,
+);
+router.get(
+  "/parts-requests",
+  employeeAuth,
+  requirePartsRequestsManage,
+  controller.getAllPartsRequests,
+);
 
 // User management
 router.get("/users/employees", employeeAuth, controller.getEmployees);
@@ -37,27 +65,42 @@ router.put(
   validate(updateEmployeeSchema, "body"),
   controller.updateEmployee,
 );
+router.put(
+  "/users/employees/:employeeId/permissions",
+  employeeAuth,
+  validate(updateEmployeePermissionSchema, "body"),
+  controller.updateEmployeePermission,
+);
 router.get("/users/customers", employeeAuth, controller.getCustomers);
 router.get("/users/roles", employeeAuth, controller.getRoles);
 router.get("/users/departments", employeeAuth, controller.getDepartments);
-router.get("/machines", employeeAuth, controller.getMachines);
-router.get("/manuals", employeeAuth, controller.getManuals);
-router.get("/brochures", employeeAuth, controller.getBrochures);
+router.get("/requests/tracking", employeeAuth, requireTrackingManage, (_req, res) =>
+  res.json({ success: true, data: { message: "Tracking access granted" } }),
+);
+router.get("/quotes", employeeAuth, requireQuotesManage, (_req, res) =>
+  res.json({ success: true, data: { message: "Quotes access granted" } }),
+);
+router.get("/machines", employeeAuth, requireMachinesManage, controller.getMachines);
+router.get("/manuals", employeeAuth, requireManualsManage, controller.getManuals);
+router.get("/brochures", employeeAuth, requireBrochuresManage, controller.getBrochures);
 router.post(
   "/manuals/upload",
   employeeAuth,
+  requireManualsManage,
   upload.single("file"),
   controller.uploadManualFile,
 );
 router.post(
   "/brochures/upload",
   employeeAuth,
+  requireBrochuresManage,
   upload.single("file"),
   controller.uploadBrochureFile,
 );
 router.post(
   "/products/profile-image",
   employeeAuth,
+  requireProductsManage,
   upload.single("file"),
   controller.uploadProductProfileImage,
 );
@@ -66,12 +109,14 @@ router.post(
 router.post(
   "/machines",
   employeeAuth,
+  requireMachinesAdd,
   validate(addMachineAdminProductSchema, "body"),
   addMachineForAdmin,
 );
 router.post(
   "/machines/:machineId/assets",
   employeeAuth,
+  requireMachinesAdd,
   validate(addMachineAssetsSchema, "body"),
   addMachineAssetsForAdmin,
 );
@@ -79,6 +124,7 @@ router.post(
 router.post(
   "/gallery/upload",
   employeeAuth,
+  requireMachinesAdd,
   upload.single("file"),
   controller.uploadGalleryImage,
 );
@@ -86,6 +132,7 @@ router.post(
 router.post(
   "/videos/upload",
   employeeAuth,
+  requireMachinesAdd,
   upload.single("file"),
   controller.uploadMachineVideo,
 );

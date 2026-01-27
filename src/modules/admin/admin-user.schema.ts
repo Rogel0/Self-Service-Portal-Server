@@ -19,3 +19,18 @@ export const updateEmployeeSchema = z.object({
   role_id: z.number().int().positive().optional(),
   department_id: z.number().int().positive().optional(),
 });
+
+export const updateEmployeePermissionSchema = z.object({
+  permission_key: z.enum([
+    "machines_manage",
+    "machines_add",
+    "manuals_manage",
+    "brochures_manage",
+    "products_manage",
+    "tracking_manage",
+    "account_requests_manage",
+    "parts_requests_manage",
+    "quotes_manage",
+  ]),
+  allowed: z.boolean(),
+});
