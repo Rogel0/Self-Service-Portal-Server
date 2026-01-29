@@ -155,6 +155,9 @@ const extractStoragePath = (bucket: string, fileUrlOrPath: string) => {
 const normalizeStoragePath = (bucket: string, fileUrlOrPath: string | null) => {
   if (!fileUrlOrPath) return null;
   let path = fileUrlOrPath;
+  if (path.startsWith(`${bucket}/`)) {
+    path = path.slice(bucket.length + 1);
+  }
   if (path.startsWith(`${bucket}/${bucket}/`)) {
     path = path.slice(bucket.length + 1);
   }
