@@ -12,7 +12,20 @@ export const addMachineAdminProductSchema = addMachineAdminSchema.extend({
   category: z.string().optional(),
   status: z.string().optional(),
   description: z.string().optional(),
-  profile_image_url: z.string().url().optional(),
+  // Accept full URL or storage path (e.g. "products/123-image.png") so we can store path
+  // Convert empty strings to undefined before validation
+  profile_image_url: z
+    .preprocess(
+      (val) => (val === "" ? undefined : val),
+      z
+        .string()
+        .min(1)
+        .refine(
+          (v) => v.startsWith("http") || /^[\w./-]+$/.test(v),
+          "Must be a valid URL or storage path",
+        )
+        .optional(),
+    ),
 });
 
 export const updateMachineSchema = z.object({

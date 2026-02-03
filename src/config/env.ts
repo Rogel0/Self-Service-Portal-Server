@@ -11,6 +11,8 @@ export const env = {
   LOG_LEVEL: process.env.LOG_LEVEL || "info",
   SUPABASE_URL: process.env.SUPABASE_URL || "",
   SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY || "",
+  UPLOADS_BASE_URL: process.env.UPLOADS_BASE_URL || `http://localhost:${process.env.PORT || "5000"}`,
+  UPLOADS_DIR: process.env.UPLOADS_DIR || ""
 } as const;
 
 // Validate required env vars

@@ -16,6 +16,7 @@ import {
   addMachineAssetsForAdmin,
 } from "../machines/machine.controller";
 import { employeeAuth, requirePermission } from "../../middlewares/auth.middleware";
+import { multerErrorHandler } from "../../middlewares/multer-error.middleware";
 
 const router = express.Router();
 const requireMachinesManage = requirePermission("machines_manage");
@@ -27,9 +28,10 @@ const requireTrackingManage = requirePermission("tracking_manage");
 const requireAccountRequestsManage = requirePermission("account_requests_manage");
 const requirePartsRequestsManage = requirePermission("parts_requests_manage");
 const requireQuotesManage = requirePermission("quotes_manage");
+// File size limit set to 50MB to match Supabase storage limits
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB (Supabase free tier limit)
 });
 
 router.get(
@@ -88,6 +90,7 @@ router.post(
   employeeAuth,
   requireManualsManage,
   upload.single("file"),
+  multerErrorHandler,
   controller.uploadManualFile,
 );
 router.post(
@@ -95,6 +98,7 @@ router.post(
   employeeAuth,
   requireBrochuresManage,
   upload.single("file"),
+  multerErrorHandler,
   controller.uploadBrochureFile,
 );
 router.post(
@@ -102,6 +106,7 @@ router.post(
   employeeAuth,
   requireProductsManage,
   upload.single("file"),
+  multerErrorHandler,
   controller.uploadProductProfileImage,
 );
 
@@ -126,6 +131,7 @@ router.post(
   employeeAuth,
   requireMachinesAdd,
   upload.single("file"),
+  multerErrorHandler,
   controller.uploadGalleryImage,
 );
 
@@ -134,8 +140,11 @@ router.post(
   employeeAuth,
   requireMachinesAdd,
   upload.single("file"),
+  multerErrorHandler,
   controller.uploadMachineVideo,
 );
 
+router.get("/settings", employeeAuth, controller.getSettings);
+router.put("/settings", employeeAuth, controller.updateSettings);
 
 export default router;

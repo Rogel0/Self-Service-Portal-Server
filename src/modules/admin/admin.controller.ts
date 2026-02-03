@@ -3,6 +3,8 @@ import pool from "../../config/database";
 import { hashPassword } from "../../utils/hash";
 import logger from "../../utils/logger";
 import { supabase } from "../../utils/supabase";
+import { success } from "zod";
+import * as storage from "../../services/storage";
 
 // Get pending customer registrations
 export const getPendingRegistrations = async (req: Request, res: Response) => {
@@ -71,7 +73,7 @@ export const approveRegistration = async (req: Request, res: Response) => {
                 initial_purchase_date
          FROM customer_user
          WHERE customer_id = $1`,
-        [customerId],
+        [customerId]
       );
 
       if (registrationResult.rows.length === 0) {
@@ -92,7 +94,7 @@ export const approveRegistration = async (req: Request, res: Response) => {
            FROM product
            WHERE product_id = $1
            LIMIT 1`,
-          [registration.initial_product_id],
+          [registration.initial_product_id]
         );
         if (productResult.rows.length === 0) {
           await client.query("ROLLBACK");
@@ -109,7 +111,7 @@ export const approveRegistration = async (req: Request, res: Response) => {
            FROM product
            WHERE product_name = $1
            LIMIT 1`,
-          [registration.initial_product_name],
+          [registration.initial_product_name]
         );
         if (productResult.rows.length === 0) {
           await client.query("ROLLBACK");
@@ -139,7 +141,7 @@ export const approveRegistration = async (req: Request, res: Response) => {
           registration.initial_serial_number,
           registration.initial_model_number,
           registration.initial_purchase_date || null,
-        ],
+        ]
       );
 
       // Generate temporary password
@@ -156,7 +158,12 @@ export const approveRegistration = async (req: Request, res: Response) => {
              password = $3,
              updated_at = NOW()
          WHERE customer_id = $4`,
-        [verification_status || "approved", employeeId, hashedPassword, customerId]
+        [
+          verification_status || "approved",
+          employeeId,
+          hashedPassword,
+          customerId,
+        ]
       );
 
       // Get customer email for sending credentials
@@ -393,7 +400,7 @@ export const getEmployees = async (req: Request, res: Response) => {
        LEFT JOIN department_permission dp_quotes
          ON e.department_id = dp_quotes.department_id
         AND dp_quotes.permission_key = 'quotes_manage'
-       ORDER BY e.created_at DESC`,
+       ORDER BY e.created_at DESC`
     );
 
     return res.json({ success: true, data: { employees: result.rows } });
@@ -415,7 +422,7 @@ export const updateEmployeePermission = async (req: Request, res: Response) => {
   try {
     const employeeResult = await pool.query(
       `SELECT employee_id FROM employee WHERE employee_id = $1`,
-      [employeeId],
+      [employeeId]
     );
 
     if (employeeResult.rows.length === 0) {
@@ -430,7 +437,7 @@ export const updateEmployeePermission = async (req: Request, res: Response) => {
        ON CONFLICT (employee_id, permission_key)
        DO UPDATE SET allowed = EXCLUDED.allowed, updated_at = NOW()
        RETURNING employee_id, permission_key, allowed`,
-      [employeeId, permission_key, allowed],
+      [employeeId, permission_key, allowed]
     );
 
     return res.json({
@@ -465,7 +472,7 @@ export const getCustomers = async (req: Request, res: Response) => {
         created_at,
         updated_at
        FROM customer_user
-       ORDER BY created_at DESC`,
+       ORDER BY created_at DESC`
     );
 
     return res.json({ success: true, data: { customers: result.rows } });
@@ -481,7 +488,7 @@ export const getCustomers = async (req: Request, res: Response) => {
 export const getRoles = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      `SELECT role_id, role_name FROM roles ORDER BY role_name`,
+      `SELECT role_id, role_name FROM roles ORDER BY role_name`
     );
     return res.json({ success: true, data: { roles: result.rows } });
   } catch (error) {
@@ -496,7 +503,7 @@ export const getRoles = async (req: Request, res: Response) => {
 export const getDepartments = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      `SELECT dept_id, dept_name FROM department ORDER BY dept_name`,
+      `SELECT dept_id, dept_name FROM department ORDER BY dept_name`
     );
     return res.json({ success: true, data: { departments: result.rows } });
   } catch (error) {
@@ -565,30 +572,30 @@ export const uploadManualFile = async (req: Request, res: Response) => {
     const fileName = sanitizeFilename(file.originalname);
     const filePath = `manuals/${Date.now()}-${fileName}`;
     const title = file.originalname.replace(/\.[^.]+$/, "");
+    let savedPath: string;
 
-    const { data, error } = await supabase.storage
-      .from("manuals")
-      .upload(filePath, file.buffer, {
+    try {
+      const result = await storage.upload("manuals", filePath, file.buffer, {
         contentType: file.mimetype,
-        upsert: false,
       });
-
-    if (error) {
-      logger.error("Supabase upload error", { error });
+      savedPath = result.path;
+    } catch (error) {
+      logger.error("Upload manual error", { error });
       return res.status(500).json({
         success: false,
         message: "Failed to upload manual",
       });
     }
+    
 
     const insertResult = await pool.query(
       `INSERT INTO machine_manuals (machine_id, product_id, title, file_url, uploaded_at)
        VALUES (NULL, NULL, $1, $2, NOW())
        RETURNING manual_id, title, file_url, uploaded_at, product_id`,
-      [title, data.path],
+      [title, savedPath]
     );
     const manualRow = insertResult.rows[0];
-    const url = await getManualUrl(manualRow.file_url);
+    const url = await storage.resolveUrl("manuals", manualRow.file_url);
 
     return res.json({
       success: true,
@@ -613,14 +620,14 @@ export const getManuals = async (_req: Request, res: Response) => {
     const result = await pool.query(
       `SELECT manual_id, title, file_url, uploaded_at, machine_id, product_id
        FROM machine_manuals
-       ORDER BY uploaded_at DESC`,
+       ORDER BY uploaded_at DESC`
     );
 
     const manuals = await Promise.all(
       result.rows.map(async (row) => ({
         ...row,
-        url: await getManualUrl(row.file_url),
-      })),
+        url: await storage.resolveUrl("manuals", row.file_url),
+      }))
     );
 
     return res.json({ success: true, data: { manuals } });
@@ -647,15 +654,14 @@ export const uploadBrochureFile = async (req: Request, res: Response) => {
     const filePath = `brochures/${Date.now()}-${fileName}`;
     const title = file.originalname.replace(/\.[^.]+$/, "");
 
-    const { data, error } = await supabase.storage
-      .from("brochures")
-      .upload(filePath, file.buffer, {
+    let savedPath: string;
+    try {
+      const result = await storage.upload("brochures", filePath, file.buffer, {
         contentType: file.mimetype,
-        upsert: false,
       });
-
-    if (error) {
-      logger.error("Supabase brochure upload error", { error });
+      savedPath = result.path;
+    } catch (error) {
+      logger.error("Upload brochure error", { error });
       return res.status(500).json({
         success: false,
         message: "Failed to upload brochure",
@@ -666,10 +672,10 @@ export const uploadBrochureFile = async (req: Request, res: Response) => {
       `INSERT INTO machine_brochures (machine_id, product_id, title, file_url, uploaded_at)
        VALUES (NULL, NULL, $1, $2, NOW())
        RETURNING brochure_id, title, file_url, uploaded_at, product_id`,
-      [title, data.path],
+      [title, savedPath]
     );
     const brochureRow = insertResult.rows[0];
-    const url = await getBrochureUrl(brochureRow.file_url);
+    const url = await storage.resolveUrl("brochures", brochureRow.file_url);
 
     return res.json({
       success: true,
@@ -694,14 +700,14 @@ export const getBrochures = async (_req: Request, res: Response) => {
     const result = await pool.query(
       `SELECT brochure_id, title, file_url, uploaded_at, machine_id, product_id
        FROM machine_brochures
-       ORDER BY uploaded_at DESC`,
+       ORDER BY uploaded_at DESC`
     );
 
     const brochures = await Promise.all(
       result.rows.map(async (row) => ({
         ...row,
-        url: await getBrochureUrl(row.file_url),
-      })),
+        url: await storage.resolveUrl("brochures", row.file_url),
+      }))
     );
 
     return res.json({ success: true, data: { brochures } });
@@ -714,7 +720,10 @@ export const getBrochures = async (_req: Request, res: Response) => {
   }
 };
 
-export const uploadProductProfileImage = async (req: Request, res: Response) => {
+export const uploadProductProfileImage = async (
+  req: Request,
+  res: Response
+) => {
   const file = (req as Request & { file?: Express.Multer.File }).file;
   if (!file) {
     return res.status(400).json({
@@ -727,31 +736,30 @@ export const uploadProductProfileImage = async (req: Request, res: Response) => 
     const fileName = sanitizeFilename(file.originalname);
     const filePath = `products/${Date.now()}-${fileName}`;
 
-    const { data, error } = await supabase.storage
-      .from("products")
-      .upload(filePath, file.buffer, {
+    let savedPath: string;
+    try {
+      const result = await storage.upload("products", filePath, file.buffer, {
         contentType: file.mimetype,
-        upsert: false,
       });
-
-    if (error) {
-      logger.error("Supabase product image upload error", { error });
+      savedPath = result.path;
+    } catch (error) {
+      logger.error("Upload product image error", { error });
       return res.status(500).json({
         success: false,
         message: "Failed to upload product image",
       });
     }
 
-    const url = await getProductImageUrl(data.path);
+    const url = await storage.resolveUrl("products", savedPath);
     return res.json({
       success: true,
       data: {
         image: {
-          file_url: data.path,
+          file_url: savedPath,
           url,
-        },
-      },
-    });
+        }
+      }
+    })
   } catch (error) {
     logger.error("Upload product image error", { error });
     return res.status(500).json({
@@ -778,7 +786,7 @@ export const getMachines = async (req: Request, res: Response) => {
        FROM machines m
        LEFT JOIN product p ON m.product_id = p.product_id
        LEFT JOIN customer_user cu ON m.customer_id = cu.customer_id
-       ORDER BY m.created_at DESC`,
+       ORDER BY m.created_at DESC`
     );
     return res.json({ success: true, data: { machines: result.rows } });
   } catch (error) {
@@ -805,7 +813,7 @@ export const createEmployee = async (req: Request, res: Response) => {
   try {
     const existing = await pool.query(
       `SELECT employee_id FROM employee WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2)`,
-      [username, email],
+      [username, email]
     );
 
     if (existing.rows.length > 0) {
@@ -833,10 +841,12 @@ export const createEmployee = async (req: Request, res: Response) => {
         username,
         hashedPassword,
         email,
-      ],
+      ]
     );
 
-    logger.info("Employee created", { employee_id: result.rows[0].employee_id });
+    logger.info("Employee created", {
+      employee_id: result.rows[0].employee_id,
+    });
 
     return res.status(201).json({
       success: true,
@@ -872,7 +882,15 @@ export const updateEmployee = async (req: Request, res: Response) => {
            updated_at = NOW()
        WHERE employee_id = $7
        RETURNING employee_id, firstname, lastname, middlename, username, email, role_id, department_id, updated_at`,
-      [firstname, lastname, middlename, email, role_id, department_id, employeeId],
+      [
+        firstname,
+        lastname,
+        middlename,
+        email,
+        role_id,
+        department_id,
+        employeeId,
+      ]
     );
 
     if (result.rows.length === 0) {
@@ -898,40 +916,55 @@ export const uploadGalleryImage = async (req: Request, res: Response) => {
   const file = (req as Request & { file?: Express.Multer.File }).file;
   const { machineId } = req.body;
 
-  if(!file || !machineId) {
-    return res.status(400).json({ success: false, message: "Missing file or machine id" });
+  if (!file || !machineId) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing file or machine id" });
+  }
+
+  const parsedMachineId = parseInt(String(machineId), 10);
+  if (isNaN(parsedMachineId)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid machine id" });
   }
 
   try {
     const machineResult = await pool.query(
       `SELECT product_id FROM machines WHERE machine_id = $1`,
-      [machineId],
+      [parsedMachineId]
     );
     const productId = machineResult.rows[0]?.product_id ?? null;
     if (!productId) {
-      return res.status(400).json({ success: false, message: "Missing product for machine" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing product for machine" });
     }
 
     const fileName = file.originalname.replace(/[^\w.-]+/g, "_");
-    const filePath = `gallery/machine_${machineId}/${fileName}`;
+    const filePath = `gallery/machine_${parsedMachineId}/${fileName}`;
 
-    const { data, error } = await supabase.storage.from("gallery").upload(filePath, file.buffer, { contentType: file.mimetype, upsert: false });
-
-    if (error) {
+    let savedPath: string;
+    try {
+      const result = await storage.upload("gallery", filePath, file.buffer, {
+        contentType: file.mimetype,
+      });
+      savedPath = result.path;
+    } catch {
       return res.status(500).json({ success: false, message: "Upload failed" });
     }
 
     const insert = await pool.query(
       `INSERT INTO machine_gallery (machine_id, product_id, image_url, uploaded_at)
-      VALUES (NULL, $1, $2, NOW()) RETURNING gallery_id, image_url, uploaded_at, product_id`,
-      [productId, data.path],
+      VALUES ($1, $2, $3, NOW()) RETURNING gallery_id, machine_id, image_url, uploaded_at, product_id`,
+      [parsedMachineId, productId, savedPath]
     );
 
-    const { data: publicUrl } = supabase.storage.from("gallery").getPublicUrl(data.path);
+    const url = await storage.resolveUrl("gallery", savedPath);
 
     return res.json({
       success: true,
-      data: { ...insert.rows[0], url: publicUrl.publicUrl },
+      data: { ...insert.rows[0], url },
     });
   } catch {
     return res.status(500).json({ success: false, message: "Upload failed" });
@@ -943,46 +976,139 @@ export const uploadMachineVideo = async (req: Request, res: Response) => {
   const { machineId, videoType } = req.body;
 
   if (!file || !machineId || !videoType) {
-    return res.status(400).json({ success: false, message: "Missing file, machine id, or video type" });
+    return res.status(400).json({
+      success: false,
+      message: "Missing file, machine id, or video type",
+    });
   }
+
+  const parsedMachineId = parseInt(String(machineId), 10);
+  if (isNaN(parsedMachineId)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid machine id" });
+  }
+
+  const safeType = String(videoType).toLowerCase().trim();
 
   try {
     const machineResult = await pool.query(
       `SELECT product_id FROM machines WHERE machine_id = $1`,
-      [machineId],
+      [parsedMachineId]
     );
     const productId = machineResult.rows[0]?.product_id ?? null;
     if (!productId) {
-      return res.status(400).json({ success: false, message: "Missing product for machine" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing product for machine" });
     }
-
-    const safeType = String(videoType).toLowerCase().trim();
     const fileName = file.originalname.replace(/[^\w.-]+/g, "_");
-    const filePath = `video/machine_${machineId}/${safeType}/${fileName}`;
+    const filePath = `video/machine_${parsedMachineId}/${safeType}/${fileName}`;
 
-    const { data, error } = await supabase.storage.from("videos").upload(filePath, file.buffer, {
-      contentType: file.mimetype,
-      upsert: false,
-    });
-
-    if (error) {
-      return res.status(500).json({ success: false, message: "Upload failed" });
+    let savedPath: string;
+    try {
+      const result = await storage.upload("videos", filePath, file.buffer, {
+        contentType: file.mimetype,
+      });
+      savedPath = result.path;
+    } catch (error) {
+      logger.error("Supabase video upload error", {
+        error,
+        machineId: parsedMachineId,
+        videoType: safeType,
+        fileSize: file.size,
+      });
+      const errorAny = error as any;
+      if (
+        errorAny?.message?.includes("exceeded the maximum allowed size") ||
+        errorAny?.statusCode === "413" ||
+        errorAny?.status === 413
+      ) {
+        return res.status(413).json({
+          success: false,
+          message: `File size (${Math.round(file.size / 1024 / 1024)}MB) exceeds limit. Maximum file size is 50MB`
+        });
+      }
+      return res.status(500).json({
+        success: false,
+        message: (error as Error)?.message || "Failed to upload video to storage",
+      });
     }
 
     const insert = await pool.query(
       `INSERT INTO machine_videos (machine_id, product_id, video_type, title, video_url, uploaded_at)
-      VALUES (NULL, $1, $2, $3, $4, NOW())
+      VALUES ($1, $2, $3, $4, $5, NOW())
       RETURNING video_id, machine_id, product_id, video_type, title, video_url, uploaded_at`,
-      [productId, safeType, file.originalname, data.path],
+      [parsedMachineId, productId, safeType, file.originalname, savedPath]
     );
 
-    const { data: publicUrl } = supabase.storage.from("videos").getPublicUrl(data.path);
+    const url = await storage.resolveUrl("videos", savedPath);
 
     return res.json({
       success: true,
-      data: { ...insert.rows[0], url: publicUrl.publicUrl },
+      data: { ...insert.rows[0], url },
     });
-  } catch {
-    return res.status(500).json({ success: false, message: "Upload failed" });
+  } catch (error: any) {
+    logger.error("Upload machine video error", {
+      error: error.message || error,
+      stack: error.stack,
+      machineId: parsedMachineId,
+      videoType: safeType,
+    });
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to upload video",
+    });
+  }
+};
+
+export const getSettings = async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT value FROM app_settings WHERE key = 'storage_mode' LIMIT 1`
+    );
+
+    const storageMode = (result.rows[0]?.value ?? "cloud") as "cloud" | "local";
+
+    return res.json({
+      success: true,
+      data: { settings: { storage_mode: storageMode } },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load settings",
+    });
+  }
+};
+
+export const updateSettings = async (req: Request, res: Response) => {
+  const { storage_mode } = req.body as { storage_mode?: string };
+
+  if (storage_mode !== "cloud" && storage_mode !== "local") {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid storage_mode. Use 'cloud' or 'local'.",
+    });
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO app_settings (key, value, updated_at)
+      VALUES ('storage_mode', $1, NOW())
+      ON CONFLICT (key)
+      DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
+      [storage_mode]
+    );
+
+    return res.json({
+      success: true,
+      data: { settings: { storage_mode } },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to save settings",
+    });
   }
 };

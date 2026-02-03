@@ -8,11 +8,17 @@ import unifiedAuthRoutes from "./modules/auth/auth.routes";
 import profileRoutes from "./modules/profile/profile.routes";
 import machineRoutes from "./modules/machines/machine.routes";
 import cookieParser from "cookie-parser";
+import path from "path";
+import { getUploadsDir } from "./services/storage";
 
 const app = express();
 
-// Security middleware
-app.use(helmet());
+// Security middleware (allow cross-origin so dev client on different port can load /uploads images)
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 
 // Rate limiting
 const limiter = rateLimit({
@@ -33,6 +39,16 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
+
+// Serve uploads; allow cross-origin so client on different port (e.g. localhost:5173) can load images
+app.use(
+  "/uploads",
+  express.static(getUploadsDir(), {
+    setHeaders: (res) => {
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    },
+  })
+);
 
 // Routes
 // unified endpoints (preferred)

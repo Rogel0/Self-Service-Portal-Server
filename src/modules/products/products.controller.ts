@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import pool from "../../config/database";
 import logger from "../../utils/logger";
-import { supabase } from "../../utils/supabase";
+import * as storage from "../../services/storage";
 
 // Get all products
 export const getProducts = async (req: Request, res: Response) => {
@@ -27,7 +27,7 @@ export const getProducts = async (req: Request, res: Response) => {
       result.rows.map(async (row) => ({
         ...row,
         profile_image_url: row.profile_image_url
-          ? await resolveSignedUrl("products", row.profile_image_url)
+          ? await storage.resolveUrl("products", row.profile_image_url)
           : null,
       })),
     );
@@ -43,71 +43,6 @@ export const getProducts = async (req: Request, res: Response) => {
       message: "Failed to fetch products",
     });
   }
-};
-
-const extractStoragePath = (bucket: string, fileUrlOrPath: string) => {
-  if (!fileUrlOrPath.startsWith("http")) return fileUrlOrPath;
-  try {
-    const url = new URL(fileUrlOrPath);
-    const pathname = url.pathname;
-    const markers = [
-      `/storage/v1/object/public/${bucket}/`,
-      `/storage/v1/object/sign/${bucket}/`,
-      `/object/public/${bucket}/`,
-      `/object/sign/${bucket}/`,
-    ];
-    for (const marker of markers) {
-      if (pathname.includes(marker)) {
-        return pathname.split(marker)[1];
-      }
-    }
-  } catch {
-    return null;
-  }
-  return null;
-};
-
-const normalizeStoragePath = (bucket: string, fileUrlOrPath: string | null) => {
-  if (!fileUrlOrPath) return null;
-  let path = fileUrlOrPath;
-  // If stored as "bucket/bucket/..." trim a single prefix
-  if (path.startsWith(`${bucket}/${bucket}/`)) {
-    path = path.slice(bucket.length + 1);
-  }
-  return path;
-};
-
-const resolvePublicUrl = (bucket: string, fileUrlOrPath: string) => {
-  const resolvedPath = normalizeStoragePath(
-    bucket,
-    extractStoragePath(bucket, fileUrlOrPath),
-  );
-  if (!resolvedPath) return fileUrlOrPath;
-  const { data } = supabase.storage.from(bucket).getPublicUrl(resolvedPath);
-  return data.publicUrl;
-};
-
-const resolveSignedUrl = async (bucket: string, fileUrlOrPath: string) => {
-  const resolvedPath = normalizeStoragePath(
-    bucket,
-    extractStoragePath(bucket, fileUrlOrPath),
-  );
-  if (!resolvedPath) return fileUrlOrPath;
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .createSignedUrl(resolvedPath, 60 * 10);
-  if (!error) return data.signedUrl;
-
-  // Fallback: try the raw extracted path if different
-  const rawPath = extractStoragePath(bucket, fileUrlOrPath);
-  if (rawPath && rawPath !== resolvedPath) {
-    const fallback = await supabase.storage
-      .from(bucket)
-      .createSignedUrl(rawPath, 60 * 10);
-    if (!fallback.error) return fallback.data.signedUrl;
-  }
-
-  return resolvePublicUrl(bucket, resolvedPath);
 };
 
 export const getProductDetails = async (req: Request, res: Response) => {
@@ -130,7 +65,7 @@ export const getProductDetails = async (req: Request, res: Response) => {
 
     const product = productResult.rows[0];
     const resolvedProfileImageUrl = product.profile_image_url
-      ? await resolveSignedUrl("products", product.profile_image_url)
+      ? await storage.resolveUrl("products", product.profile_image_url)
       : null;
 
     const [manualsResult, brochuresResult, galleryResult, videosResult, specsResult] =
@@ -175,28 +110,28 @@ export const getProductDetails = async (req: Request, res: Response) => {
     const manuals = await Promise.all(
       manualsResult.rows.map(async (row) => ({
         ...row,
-        url: await resolveSignedUrl("manuals", row.file_url),
+        url: await storage.resolveUrl("manuals", row.file_url),
       })),
     );
 
     const brochures = await Promise.all(
       brochuresResult.rows.map(async (row) => ({
         ...row,
-        url: await resolveSignedUrl("brochures", row.file_url),
+        url: await storage.resolveUrl("brochures", row.file_url),
       })),
     );
 
     const gallery = await Promise.all(
       galleryResult.rows.map(async (row) => ({
         ...row,
-        url: await resolveSignedUrl("gallery", row.image_url),
+        url: await storage.resolveUrl("gallery", row.image_url),
       })),
     );
 
     const videos = await Promise.all(
       videosResult.rows.map(async (row) => ({
         ...row,
-        url: await resolveSignedUrl("videos", row.video_url),
+        url: await storage.resolveUrl("videos", row.video_url),
       })),
     );
 

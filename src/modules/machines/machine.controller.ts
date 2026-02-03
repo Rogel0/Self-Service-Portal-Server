@@ -2,6 +2,9 @@ import { Request, Response } from "express";
 import pool from "../../config/database";
 import logger from "../../utils/logger";
 import { supabase } from "../../utils/supabase";
+import { clearStorageModeCache } from "../../services/storage";
+
+clearStorageModeCache(); 
 
 export const addMachine = async (req: Request, res: Response) => {
   const client = await pool.connect();
@@ -535,46 +538,59 @@ export const addMachineAssetsForAdmin = async (
   res: Response,
 ) => {
   const client = await pool.connect();
-  const { machineId } = req.params;
+  const machineIdParam = Array.isArray(req.params.machineId) 
+    ? req.params.machineId[0] 
+    : req.params.machineId;
+  const machineId = parseInt(machineIdParam, 10);
+
+  if (isNaN(machineId)) {
+    client.release();
+    return res.status(400).json({
+      success: false,
+      message: "Invalid machine ID",
+    });
+  }
 
   try {
     await client.query("BEGIN");
 
     const machineCheck = await client.query(
-      `SELECT machine_id FROM machines WHERE machine_id = $1`,
+      `SELECT machine_id, product_id FROM machines WHERE machine_id = $1`,
       [machineId],
     );
     if (machineCheck.rows.length === 0) {
       await client.query("ROLLBACK");
+      client.release();
       return res.status(404).json({
         success: false,
         message: "Machine not found",
       });
     }
 
-    const { manuals, gallery, brochures, videos, specifications, manual_ids, brochure_ids } = req.body;
-
-    const machineRow = await client.query(
-      `SELECT product_id FROM machines WHERE machine_id = $1`,
-      [machineId],
-    );
-    const productId = machineRow.rows[0]?.product_id ?? null;
+    const productId = machineCheck.rows[0]?.product_id ?? null;
     if (!productId) {
       await client.query("ROLLBACK");
+      client.release();
       return res.status(400).json({
         success: false,
         message: "Machine has no product",
       });
     }
 
-    if (manual_ids?.length) {
-      await client.query(
-        `UPDATE machine_manuals SET product_id = $1 WHERE manual_id = ANY($2::int[])`,
-        [productId, manual_ids],
-      )
+    const { manuals, gallery, brochures, videos, specifications, manual_ids, brochure_ids } = req.body;
+
+    // Link existing manuals to this machine and product
+    if (manual_ids?.length && Array.isArray(manual_ids)) {
+      const result = await client.query(
+        `UPDATE machine_manuals 
+         SET machine_id = $1, product_id = $2 
+         WHERE manual_id = ANY($3::int[])`,
+        [machineId, productId, manual_ids],
+      );
+      logger.info(`Linked ${result.rowCount} manuals to machine ${machineId}`);
     }
 
-    if (gallery?.length) {
+    if (gallery?.length && Array.isArray(gallery)) {
       for (const item of gallery) {
         await client.query(
           `INSERT INTO machine_gallery (machine_id, product_id, image_url, caption, uploaded_at)
@@ -584,14 +600,18 @@ export const addMachineAssetsForAdmin = async (
       }
     }
 
-    if (brochure_ids?.length) {
-      await client.query(
-        `UPDATE machine_brochures SET product_id = $1 WHERE brochure_id = ANY($2::int[])`,
-        [productId, brochure_ids],
-      )
+    // Link existing brochures to this machine and product
+    if (brochure_ids?.length && Array.isArray(brochure_ids)) {
+      const result = await client.query(
+        `UPDATE machine_brochures 
+         SET machine_id = $1, product_id = $2 
+         WHERE brochure_id = ANY($3::int[])`,
+        [machineId, productId, brochure_ids],
+      );
+      logger.info(`Linked ${result.rowCount} brochures to machine ${machineId}`);
     }
 
-    if (videos?.length) {
+    if (videos?.length && Array.isArray(videos)) {
       for (const item of videos) {
         await client.query(
           `INSERT INTO machine_videos (machine_id, product_id, video_type, title, video_url, uploaded_at)
@@ -601,12 +621,15 @@ export const addMachineAssetsForAdmin = async (
       }
     }
 
-    if (specifications?.length) {
+    if (specifications?.length && Array.isArray(specifications)) {
       for (const item of specifications) {
+        if (!item.spec_name || !item.spec_value) {
+          throw new Error("Specification must have both spec_name and spec_value");
+        }
         await client.query(
           `INSERT INTO machine_specifications (machine_id, product_id, spec_name, spec_value)
            VALUES ($1, $2, $3, $4)`,
-          [machineId, productId, item.spec_name, item.spec_value],
+          [machineId, productId, item.spec_name.trim(), item.spec_value.trim()],
         );
       }
     }
@@ -616,12 +639,17 @@ export const addMachineAssetsForAdmin = async (
       success: true,
       message: "Machine details saved successfully",
     });
-  } catch (error) {
+  } catch (error: any) {
     await client.query("ROLLBACK");
-    logger.error("Add machine assets (admin) error", { error });
+    logger.error("Add machine assets (admin) error", { 
+      error: error.message || error,
+      stack: error.stack,
+      machineId,
+      body: req.body,
+    });
     return res.status(500).json({
       success: false,
-      message: "Failed to save machine details",
+      message: error.message || "Failed to save machine details",
     });
   } finally {
     client.release();
