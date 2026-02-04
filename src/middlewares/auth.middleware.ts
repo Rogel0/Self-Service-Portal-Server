@@ -7,6 +7,7 @@ import {
   verifyCustomerToken,
 } from "../utils/token";
 import logger from "../utils/logger";
+import { success } from "zod";
 
 // Augment Express Request to include `employee` and `customer` from our token payloads
 declare module "express-serve-static-core" {
@@ -109,6 +110,43 @@ export const requirePermission = (permissionKey: string) => {
     }
   };
 };
+
+export const requireAdminOrPermission = (permissionKey: string) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.employee) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+
+    try {
+      const result = await pool.query(
+        `SELECT d.dept_name, ep.allowed AS employee_allowed, dp.allowed AS dept_allowed
+         FROM employee e
+         JOIN department d ON e.department_id = d.dept_id
+         LEFT JOIN employee_permission ep
+           ON e.employee_id = ep.employee_id AND ep.permission_key = $1
+         LEFT JOIN department_permission dp
+           ON e.department_id = dp.department_id AND dp.permission_key = $1
+         WHERE e.employee_id = $2`,
+         [permissionKey, req.employee.employee_id],
+      );
+
+      const row = result.rows[0];
+      const isAdmin = row?.dept_name?.toLowerCase() === "admin";
+      const allowed = row?.employee_allowed ?? row?.dept_allowed ?? false;
+
+      if (isAdmin || allowed) {
+        return next();
+      }
+      return res.status(403).json({ success: false, message: "Access denied" });
+    } catch (err) {
+      logger.error("Admin or permission check failed", { err, permissionKey });
+      return res.status(500).json({
+        success: false,
+        message: "Failed to verify access"
+      })
+    }
+  }
+}
 
 export const customerAuth = (
   req: Request,

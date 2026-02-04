@@ -7,6 +7,13 @@ export const addMachineSchema = z.object({
 
 export const addMachineAdminSchema = addMachineSchema;
 
+export const assignMachineToCustomerSchema = z.object({
+  product_id: z.coerce.number().int().positive("Product is required"),
+  serial_number: z.string().min(1, "Serial number is required"),
+  model_number: z.string().optional(),
+  purchase_date: z.string().optional(),
+});
+
 export const addMachineAdminProductSchema = addMachineAdminSchema.extend({
   product_name: z.string().optional(),
   category: z.string().optional(),

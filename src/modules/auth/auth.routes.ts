@@ -171,7 +171,9 @@ router.get("/me", (req: Request, res: Response) => {
                 COALESCE(ep_tracking.allowed, dp_tracking.allowed, false) AS tracking_manage,
                 COALESCE(ep_accounts.allowed, dp_accounts.allowed, false) AS account_requests_manage,
                 COALESCE(ep_parts.allowed, dp_parts.allowed, false) AS parts_requests_manage,
-                COALESCE(ep_quotes.allowed, dp_quotes.allowed, false) AS quotes_manage
+                COALESCE(ep_quotes.allowed, dp_quotes.allowed, false) AS quotes_manage,
+                COALESCE(ep_customers.allowed, dp_customers.allowed, false) AS customers_manage,
+                COALESCE(ep_permissions.allowed, dp_permissions.allowed, false) AS permissions_manage
          FROM employee e
          JOIN department d ON e.department_id = d.dept_id
          LEFT JOIN employee_permission ep_machines
@@ -228,6 +230,18 @@ router.get("/me", (req: Request, res: Response) => {
          LEFT JOIN department_permission dp_quotes
            ON e.department_id = dp_quotes.department_id
           AND dp_quotes.permission_key = 'quotes_manage'
+         LEFT JOIN employee_permission ep_customers
+          ON e.employee_id = ep_customers.employee_id
+          AND ep_customers.permission_key = 'customers_manage'
+         LEFT JOIN department_permission dp_customers
+          ON e.department_id = dp_customers.department_id
+          AND dp_customers.permission_key = 'customers_manage'
+         LEFT JOIN employee_permission ep_permissions
+           ON e.employee_id = ep_permissions.employee_id
+           AND ep_permissions.permission_key = 'permissions_manage'
+         LEFT JOIN department_permission dp_permissions
+           ON e.department_id = dp_permissions.department_id
+           AND dp_permissions.permission_key = 'permissions_manage'
          WHERE e.employee_id = $1
          LIMIT 1`,
         [payload.employee_id],

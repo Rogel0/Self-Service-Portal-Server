@@ -5,6 +5,7 @@ import logger from "../../utils/logger";
 import { supabase } from "../../utils/supabase";
 import { success } from "zod";
 import * as storage from "../../services/storage";
+import { computeWarrantyInfo } from "../../utils/warranty";
 
 // Get pending customer registrations
 export const getPendingRegistrations = async (req: Request, res: Response) => {
@@ -342,7 +343,11 @@ export const getEmployees = async (req: Request, res: Response) => {
           WHEN ep_quotes.allowed IS NOT NULL THEN 'override'
           WHEN dp_quotes.allowed IS NOT NULL THEN 'department'
           ELSE 'none'
-        END AS quotes_manage_source
+        END AS quotes_manage_source,
+        COALESCE(ep_customers.allowed, dp_customers.allowed, false) AS customers_manage,
+        CASE WHEN ep_customers.allowed IS NOT NULL THEN 'override' WHEN dp_customers.allowed IS NOT NULL THEN 'department' ELSE 'none' END AS customers_manage_source,
+        COALESCE(ep_permissions.allowed, dp_permissions.allowed, false) AS permissions_manage,
+        CASE WHEN ep_permissions.allowed IS NOT NULL THEN 'override' WHEN dp_permissions.allowed IS NOT NULL THEN 'department' ELSE 'none' END AS permissions_manage_source
        FROM employee e
        LEFT JOIN roles r ON e.role_id = r.role_id
        LEFT JOIN department d ON e.department_id = d.dept_id
@@ -400,6 +405,18 @@ export const getEmployees = async (req: Request, res: Response) => {
        LEFT JOIN department_permission dp_quotes
          ON e.department_id = dp_quotes.department_id
         AND dp_quotes.permission_key = 'quotes_manage'
+       LEFT JOIN employee_permission ep_customers
+        ON e.employee_id = ep_customers.employee_id
+        AND ep_customers.permission_key = 'customers_manage'
+       LEFT JOIN department_permission dp_customers
+        ON e.department_id = dp_customers.department_id
+        AND dp_customers.permission_key = 'customers_manage'
+       LEFT JOIN employee_permission ep_permissions
+        ON e.employee_id = ep_permissions.employee_id
+        AND ep_permissions.permission_key = 'permissions_manage'
+       LEFT JOIN department_permission dp_permissions
+        ON e.department_id = dp_permissions.department_id
+        AND dp_permissions.permission_key = 'permissions_manage'
        ORDER BY e.created_at DESC`
     );
 
@@ -415,7 +432,18 @@ export const getEmployees = async (req: Request, res: Response) => {
 export const updateEmployeePermission = async (req: Request, res: Response) => {
   const { employeeId } = req.params;
   const { permission_key, allowed } = req.body as {
-    permission_key: "machines_manage";
+    permission_key:
+      | "machines_manage"
+      | "machines_add"
+      | "manuals_manage"
+      | "brochures_manage"
+      | "products_manage"
+      | "tracking_manage"
+      | "account_requests_manage"
+      | "parts_requests_manage"
+      | "quotes_manage"
+      | "customers_manage"
+      | "permissions_manage";
     allowed: boolean;
   };
 
@@ -481,6 +509,213 @@ export const getCustomers = async (req: Request, res: Response) => {
     return res
       .status(500)
       .json({ success: false, message: "Failed to fetch customers" });
+  }
+};
+
+// Get one customer by ID
+export const getCustomerById = async (req: Request, res: Response) => {
+  try {
+    const raw = req.params.customerId;
+    const customerId = parseInt(
+      Array.isArray(raw) ? raw[0] : raw,
+      10
+    );
+    if (isNaN(customerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid customer ID",
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT 
+        customer_id,
+        first_name,
+        last_name,
+        middle_name,
+        company_name,
+        email,
+        phone,
+        landline,
+        username,
+        verification_status,
+        approved,
+        created_at,
+        updated_at
+       FROM customer_user
+       WHERE customer_id = $1`,
+      [customerId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found",
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: { customer: result.rows[0] },
+    });
+  } catch (error) {
+    logger.error("Get customer by ID error", { error });
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch customer" });
+  }
+};
+
+// Get machines for a customer
+export const getCustomerMachines = async (req: Request, res: Response) => {
+  try {
+    const raw = req.params.customerId;
+    const customerId = parseInt(
+      Array.isArray(raw) ? raw[0] : raw,
+      10
+    );
+    if (isNaN(customerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid customer ID",
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT 
+        m.machine_id,
+        m.serial_number,
+        m.model_number,
+        m.product_id,
+        p.product_name,
+        m.customer_id,
+        m.purchase_date,
+        m.status,
+        m.created_at
+       FROM machines m
+       LEFT JOIN product p ON m.product_id = p.product_id
+       WHERE m.customer_id = $1
+       ORDER BY m.created_at DESC`,
+      [customerId]
+    );
+
+    const machines = result.rows.map((row) => ({
+      ...row,
+      ...computeWarrantyInfo(row.purchase_date),
+    }));
+
+    return res.json({ success: true, data: { machines } });
+  } catch (error) {
+    logger.error("Get customer machines error", { error });
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch customer machines" });
+  }
+};
+
+// Assign a machine to a customer (admin)
+export const assignMachineToCustomer = async (req: Request, res: Response) => {
+  try {
+    const raw = req.params.customerId;
+    const customerId = parseInt(
+      Array.isArray(raw) ? raw[0] : raw,
+      10
+    );
+    if (isNaN(customerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid customer ID",
+      });
+    }
+
+    const { product_id, serial_number, model_number, purchase_date } =
+      req.body;
+
+    if (!serial_number || typeof serial_number !== "string" || !serial_number.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Serial number is required",
+      });
+    }
+
+    const productId = product_id != null ? parseInt(String(product_id), 10) : null;
+    if (productId == null || isNaN(productId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Product is required",
+      });
+    }
+
+    // Verify customer exists
+    const customerCheck = await pool.query(
+      `SELECT customer_id FROM customer_user WHERE customer_id = $1`,
+      [customerId]
+    );
+    if (customerCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found",
+      });
+    }
+
+    // Verify product exists
+    const productCheck = await pool.query(
+      `SELECT product_id, product_name FROM product WHERE product_id = $1`,
+      [productId]
+    );
+    if (productCheck.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product",
+      });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO machines
+       (customer_id, product_id, serial_number, model_number, purchase_date, registration_date, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW(), 'active', NOW())
+       RETURNING machine_id, serial_number, model_number, product_id, customer_id, purchase_date, status, created_at`,
+      [
+        customerId,
+        productId,
+        serial_number.trim(),
+        model_number != null && String(model_number).trim() !== ""
+          ? String(model_number).trim()
+          : null,
+        purchase_date && String(purchase_date).trim() !== ""
+          ? String(purchase_date).trim()
+          : null,
+      ]
+    );
+
+    const row = result.rows[0];
+    const machine = {
+      ...row,
+      product_name: productCheck.rows[0].product_name,
+      ...computeWarrantyInfo(row.purchase_date),
+    };
+
+    logger.info("Machine assigned to customer", {
+      machine_id: row.machine_id,
+      customer_id: customerId,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: { machine },
+    });
+  } catch (error: any) {
+    logger.error("Assign machine to customer error", { error });
+    if (error.code === "23505") {
+      return res.status(400).json({
+        success: false,
+        message: "Serial number already exists",
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      message: "Failed to assign machine to customer",
+    });
   }
 };
 

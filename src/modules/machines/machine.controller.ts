@@ -2,7 +2,9 @@ import { Request, Response } from "express";
 import pool from "../../config/database";
 import logger from "../../utils/logger";
 import { supabase } from "../../utils/supabase";
+import * as storage from "../../services/storage";
 import { clearStorageModeCache } from "../../services/storage";
+import { computeWarrantyInfo } from "../../utils/warranty";
 
 clearStorageModeCache(); 
 
@@ -112,12 +114,16 @@ export const getMyMachines = async (req: Request, res: Response) => {
     );
 
     const machines = await Promise.all(
-      result.rows.map(async (row) => ({
-        ...row,
-        profile_image_url: row.profile_image_url
-          ? await resolveSignedUrl("products", row.profile_image_url)
-          : null,
-      })),
+      result.rows.map(async (row) => {
+        const warranty = computeWarrantyInfo(row.purchase_date);
+        return {
+          ...row,
+          profile_image_url: row.profile_image_url
+            ? await storage.resolveUrl("products", row.profile_image_url)
+            : null,
+          ...warranty,
+        };
+      }),
     );
 
     return res.json({
@@ -167,37 +173,8 @@ const normalizeStoragePath = (bucket: string, fileUrlOrPath: string | null) => {
   return path;
 };
 
-const resolvePublicUrl = (bucket: string, fileUrlOrPath: string) => {
-  const resolvedPath = normalizeStoragePath(
-    bucket,
-    extractStoragePath(bucket, fileUrlOrPath),
-  );
-  if (!resolvedPath) return fileUrlOrPath;
-  const { data } = supabase.storage.from(bucket).getPublicUrl(resolvedPath);
-  return data.publicUrl;
-};
-
-const resolveSignedUrl = async (bucket: string, fileUrlOrPath: string) => {
-  const resolvedPath = normalizeStoragePath(
-    bucket,
-    extractStoragePath(bucket, fileUrlOrPath),
-  );
-  if (!resolvedPath) return fileUrlOrPath;
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .createSignedUrl(resolvedPath, 60 * 10);
-  if (!error) return data.signedUrl;
-
-  const rawPath = extractStoragePath(bucket, fileUrlOrPath);
-  if (rawPath && rawPath !== resolvedPath) {
-    const fallback = await supabase.storage
-      .from(bucket)
-      .createSignedUrl(rawPath, 60 * 10);
-    if (!fallback.error) return fallback.data.signedUrl;
-  }
-
-  return resolvePublicUrl(bucket, resolvedPath);
-};
+// NOTE: Do NOT resolve URLs directly via Supabase here.
+// Use storage.resolveUrl so customer access works for BOTH cloud and local modes.
 
 export const getMachineDetails = async (req: Request, res: Response) => {
   const customerId = req.customer?.customer_id;
@@ -237,57 +214,63 @@ export const getMachineDetails = async (req: Request, res: Response) => {
         message: "Machine not found",
       });
     }
-
     const machine = machineResult.rows[0];
+    const warranty = computeWarrantyInfo(machine.purchase_date);
     const resolvedMachine = {
       ...machine,
       profile_image_url: machine.profile_image_url
-        ? await resolveSignedUrl("products", machine.profile_image_url)
+        ? await storage.resolveUrl("products", machine.profile_image_url)
         : null,
+      ...warranty,
     };
 
     // Get manuals
     const manualsResult = await pool.query(
-      `SELECT manual_id, title, file_url, uploaded_at
+      `SELECT DISTINCT ON (file_url, title)
+        manual_id, title, file_url, uploaded_at
        FROM machine_manuals
        WHERE machine_id = $1 OR product_id = $2
-       ORDER BY uploaded_at DESC`,
+       ORDER BY file_url, title, uploaded_at DESC`,
       [machineId, machine.product_id]
     );
 
     // Get gallery
     const galleryResult = await pool.query(
-      `SELECT gallery_id, image_url, caption, uploaded_at
+      `SELECT DISTINCT ON (image_url, caption)
+        gallery_id, image_url, caption, uploaded_at
        FROM machine_gallery
        WHERE machine_id = $1 OR product_id = $2
-       ORDER BY uploaded_at DESC`,
+       ORDER BY image_url, caption, uploaded_at DESC`,
       [machineId, machine.product_id]
     );
 
     // Get brochures
     const brochuresResult = await pool.query(
-      `SELECT brochure_id, title, file_url, uploaded_at
+      `SELECT DISTINCT ON (file_url, title)
+        brochure_id, title, file_url, uploaded_at
        FROM machine_brochures
        WHERE machine_id = $1 OR product_id = $2
-       ORDER BY uploaded_at DESC`,
+       ORDER BY file_url, title, uploaded_at DESC`,
       [machineId, machine.product_id]
     );
 
     // Get videos
     const videosResult = await pool.query(
-      `SELECT video_id, video_type, title, video_url, uploaded_at
+      `SELECT DISTINCT ON (video_url, video_type, title)
+        video_id, video_type, title, video_url, uploaded_at
        FROM machine_videos
        WHERE machine_id = $1 OR product_id = $2
-       ORDER BY uploaded_at DESC`,
+       ORDER BY video_url, video_type, title, uploaded_at DESC`,
       [machineId, machine.product_id]
     );
 
     // Get specifications
     const specsResult = await pool.query(
-      `SELECT spec_id, spec_name, spec_value
+      `SELECT DISTINCT ON (spec_name)
+        spec_id, spec_name, spec_value
        FROM machine_specifications
        WHERE machine_id = $1 OR product_id = $2
-       ORDER BY spec_name`,
+       ORDER BY spec_name, spec_id DESC`,
       [machineId, machine.product_id]
     );
 
@@ -304,7 +287,7 @@ export const getMachineDetails = async (req: Request, res: Response) => {
       manualsResult.rows.map(async (row) => ({
         ...row,
         file_url: row.file_url
-          ? await resolveSignedUrl("manuals", row.file_url)
+          ? await storage.resolveUrl("manuals", row.file_url)
           : row.file_url,
       })),
     );
@@ -313,7 +296,7 @@ export const getMachineDetails = async (req: Request, res: Response) => {
       galleryResult.rows.map(async (row) => ({
         ...row,
         image_url: row.image_url
-          ? await resolveSignedUrl("gallery", row.image_url)
+          ? await storage.resolveUrl("gallery", row.image_url)
           : row.image_url,
       })),
     );
@@ -322,7 +305,7 @@ export const getMachineDetails = async (req: Request, res: Response) => {
       brochuresResult.rows.map(async (row) => ({
         ...row,
         file_url: row.file_url
-          ? await resolveSignedUrl("brochures", row.file_url)
+          ? await storage.resolveUrl("brochures", row.file_url)
           : row.file_url,
       })),
     );
@@ -331,7 +314,7 @@ export const getMachineDetails = async (req: Request, res: Response) => {
       videosResult.rows.map(async (row) => ({
         ...row,
         video_url: row.video_url
-          ? await resolveSignedUrl("videos", row.video_url)
+          ? await storage.resolveUrl("videos", row.video_url)
           : row.video_url,
       })),
     );

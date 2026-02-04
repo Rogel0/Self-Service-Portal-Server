@@ -10,13 +10,15 @@ import {
 import {
   addMachineAdminProductSchema,
   addMachineAssetsSchema,
+  assignMachineToCustomerSchema,
 } from "../machines/machine.schema";
 import {
   addMachineForAdmin,
   addMachineAssetsForAdmin,
 } from "../machines/machine.controller";
-import { employeeAuth, requirePermission } from "../../middlewares/auth.middleware";
+import { employeeAuth, requirePermission, requireAdminOrPermission } from "../../middlewares/auth.middleware";
 import { multerErrorHandler } from "../../middlewares/multer-error.middleware";
+
 
 const router = express.Router();
 const requireMachinesManage = requirePermission("machines_manage");
@@ -28,6 +30,8 @@ const requireTrackingManage = requirePermission("tracking_manage");
 const requireAccountRequestsManage = requirePermission("account_requests_manage");
 const requirePartsRequestsManage = requirePermission("parts_requests_manage");
 const requireQuotesManage = requirePermission("quotes_manage");
+const requireCustomersManage = requireAdminOrPermission("customers_manage");
+const requirePermissionsManage = requireAdminOrPermission("permissions_manage");
 // File size limit set to 50MB to match Supabase storage limits
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -54,28 +58,51 @@ router.get(
 );
 
 // User management
-router.get("/users/employees", employeeAuth, controller.getEmployees);
+router.get("/users/employees", employeeAuth, requirePermissionsManage, controller.getEmployees);
 router.post(
   "/users/employees",
   employeeAuth,
+  requirePermissionsManage,
   validate(createEmployeeSchema, "body"),
   controller.createEmployee,
 );
 router.put(
   "/users/employees/:employeeId",
   employeeAuth,
+  requirePermissionsManage,
   validate(updateEmployeeSchema, "body"),
   controller.updateEmployee,
 );
 router.put(
   "/users/employees/:employeeId/permissions",
   employeeAuth,
+  requirePermissionsManage,
   validate(updateEmployeePermissionSchema, "body"),
   controller.updateEmployeePermission,
 );
-router.get("/users/customers", employeeAuth, controller.getCustomers);
-router.get("/users/roles", employeeAuth, controller.getRoles);
-router.get("/users/departments", employeeAuth, controller.getDepartments);
+router.get("/users/customers", employeeAuth, requireCustomersManage, controller.getCustomers);
+router.get(
+  "/users/customers/:customerId",
+  employeeAuth,
+  requireCustomersManage,
+  controller.getCustomerById,
+);
+router.get(
+  "/customers/:customerId/machines",
+  employeeAuth,
+  requireCustomersManage,
+  controller.getCustomerMachines,
+);
+router.post(
+  "/customers/:customerId/machines",
+  employeeAuth,
+  requireMachinesAdd,
+  requireCustomersManage,
+  validate(assignMachineToCustomerSchema, "body"),
+  controller.assignMachineToCustomer,
+);
+router.get("/users/roles", employeeAuth, requirePermissionsManage, controller.getRoles);
+router.get("/users/departments", employeeAuth, requirePermissionsManage, controller.getDepartments);
 router.get("/requests/tracking", employeeAuth, requireTrackingManage, (_req, res) =>
   res.json({ success: true, data: { message: "Tracking access granted" } }),
 );
