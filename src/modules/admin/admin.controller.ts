@@ -516,10 +516,7 @@ export const getCustomers = async (req: Request, res: Response) => {
 export const getCustomerById = async (req: Request, res: Response) => {
   try {
     const raw = req.params.customerId;
-    const customerId = parseInt(
-      Array.isArray(raw) ? raw[0] : raw,
-      10
-    );
+    const customerId = parseInt(Array.isArray(raw) ? raw[0] : raw, 10);
     if (isNaN(customerId)) {
       return res.status(400).json({
         success: false,
@@ -570,10 +567,7 @@ export const getCustomerById = async (req: Request, res: Response) => {
 export const getCustomerMachines = async (req: Request, res: Response) => {
   try {
     const raw = req.params.customerId;
-    const customerId = parseInt(
-      Array.isArray(raw) ? raw[0] : raw,
-      10
-    );
+    const customerId = parseInt(Array.isArray(raw) ? raw[0] : raw, 10);
     if (isNaN(customerId)) {
       return res.status(400).json({
         success: false,
@@ -613,14 +607,50 @@ export const getCustomerMachines = async (req: Request, res: Response) => {
   }
 };
 
+export const getCustomerPartsRequests = async (req: Request, res: Response) => {
+  try {
+    const raw = req.params.customerId;
+    const customerId = parseInt(Array.isArray(raw) ? raw[0] : raw, 10);
+    if (isNaN(customerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid customer ID",
+      });
+    }
+    const result = await pool.query(
+      `SELECT 
+        pr.request_id,
+        pr.customer_id,
+        pr.machine_id,
+        pr.status,
+        pr.total_amount,
+        pr.payment_verified,
+        pr.call_verified,
+        pr.created_at,
+        pr.updated_at,
+        m.serial_number,
+        m.model_number
+       FROM parts_request pr
+       JOIN machines m ON pr.machine_id = m.machine_id
+       WHERE pr.customer_id = $1
+       ORDER BY pr.created_at DESC`,
+      [customerId]
+    );
+    return res.json({ success: true, data: { requests: result.rows } });
+  } catch (error) {
+    logger.error("Get customer history error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch customer parts requests",
+    });
+  }
+};
+
 // Assign a machine to a customer (admin)
 export const assignMachineToCustomer = async (req: Request, res: Response) => {
   try {
     const raw = req.params.customerId;
-    const customerId = parseInt(
-      Array.isArray(raw) ? raw[0] : raw,
-      10
-    );
+    const customerId = parseInt(Array.isArray(raw) ? raw[0] : raw, 10);
     if (isNaN(customerId)) {
       return res.status(400).json({
         success: false,
@@ -628,17 +658,21 @@ export const assignMachineToCustomer = async (req: Request, res: Response) => {
       });
     }
 
-    const { product_id, serial_number, model_number, purchase_date } =
-      req.body;
+    const { product_id, serial_number, model_number, purchase_date } = req.body;
 
-    if (!serial_number || typeof serial_number !== "string" || !serial_number.trim()) {
+    if (
+      !serial_number ||
+      typeof serial_number !== "string" ||
+      !serial_number.trim()
+    ) {
       return res.status(400).json({
         success: false,
         message: "Serial number is required",
       });
     }
 
-    const productId = product_id != null ? parseInt(String(product_id), 10) : null;
+    const productId =
+      product_id != null ? parseInt(String(product_id), 10) : null;
     if (productId == null || isNaN(productId)) {
       return res.status(400).json({
         success: false,
@@ -821,7 +855,6 @@ export const uploadManualFile = async (req: Request, res: Response) => {
         message: "Failed to upload manual",
       });
     }
-    
 
     const insertResult = await pool.query(
       `INSERT INTO machine_manuals (machine_id, product_id, title, file_url, uploaded_at)
@@ -992,9 +1025,9 @@ export const uploadProductProfileImage = async (
         image: {
           file_url: savedPath,
           url,
-        }
-      }
-    })
+        },
+      },
+    });
   } catch (error) {
     logger.error("Upload product image error", { error });
     return res.status(500).json({
@@ -1261,12 +1294,15 @@ export const uploadMachineVideo = async (req: Request, res: Response) => {
       ) {
         return res.status(413).json({
           success: false,
-          message: `File size (${Math.round(file.size / 1024 / 1024)}MB) exceeds limit. Maximum file size is 50MB`
+          message: `File size (${Math.round(
+            file.size / 1024 / 1024
+          )}MB) exceeds limit. Maximum file size is 50MB`,
         });
       }
       return res.status(500).json({
         success: false,
-        message: (error as Error)?.message || "Failed to upload video to storage",
+        message:
+          (error as Error)?.message || "Failed to upload video to storage",
       });
     }
 

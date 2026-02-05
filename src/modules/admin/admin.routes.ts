@@ -93,6 +93,13 @@ router.get(
   requireCustomersManage,
   controller.getCustomerMachines,
 );
+router.get(
+  "/customers/:customerId/parts-requests",
+  employeeAuth,
+  requireCustomersManage,
+  controller.getCustomerPartsRequests,
+)
+
 router.post(
   "/customers/:customerId/machines",
   employeeAuth,
