@@ -31,7 +31,7 @@ export const getPendingRegistrations = async (req: Request, res: Response) => {
         created_at
        FROM customer_user
        WHERE approved = false OR verification_status = 'pending'
-       ORDER BY created_at DESC`
+       ORDER BY created_at DESC`,
     );
 
     return res.json({
@@ -74,7 +74,7 @@ export const approveRegistration = async (req: Request, res: Response) => {
                 initial_purchase_date
          FROM customer_user
          WHERE customer_id = $1`,
-        [customerId]
+        [customerId],
       );
 
       if (registrationResult.rows.length === 0) {
@@ -95,7 +95,7 @@ export const approveRegistration = async (req: Request, res: Response) => {
            FROM product
            WHERE product_id = $1
            LIMIT 1`,
-          [registration.initial_product_id]
+          [registration.initial_product_id],
         );
         if (productResult.rows.length === 0) {
           await client.query("ROLLBACK");
@@ -112,7 +112,7 @@ export const approveRegistration = async (req: Request, res: Response) => {
            FROM product
            WHERE product_name = $1
            LIMIT 1`,
-          [registration.initial_product_name]
+          [registration.initial_product_name],
         );
         if (productResult.rows.length === 0) {
           await client.query("ROLLBACK");
@@ -142,7 +142,7 @@ export const approveRegistration = async (req: Request, res: Response) => {
           registration.initial_serial_number,
           registration.initial_model_number,
           registration.initial_purchase_date || null,
-        ]
+        ],
       );
 
       // Generate temporary password
@@ -164,13 +164,13 @@ export const approveRegistration = async (req: Request, res: Response) => {
           employeeId,
           hashedPassword,
           customerId,
-        ]
+        ],
       );
 
       // Get customer email for sending credentials
       const customerResult = await client.query(
         `SELECT email, username FROM customer_user WHERE customer_id = $1`,
-        [customerId]
+        [customerId],
       );
 
       await client.query("COMMIT");
@@ -200,7 +200,7 @@ export const approveRegistration = async (req: Request, res: Response) => {
              verified_at = NOW(),
              updated_at = NOW()
          WHERE customer_id = $2`,
-        [employeeId, customerId]
+        [employeeId, customerId],
       );
 
       await client.query("COMMIT");
@@ -257,7 +257,7 @@ export const getAllPartsRequests = async (req: Request, res: Response) => {
        FROM parts_request pr
        JOIN customer_user cu ON pr.customer_id = cu.customer_id
        JOIN machines m ON pr.machine_id = m.machine_id
-       ORDER BY pr.created_at DESC`
+       ORDER BY pr.created_at DESC`,
     );
 
     return res.json({
@@ -417,7 +417,7 @@ export const getEmployees = async (req: Request, res: Response) => {
        LEFT JOIN department_permission dp_permissions
         ON e.department_id = dp_permissions.department_id
         AND dp_permissions.permission_key = 'permissions_manage'
-       ORDER BY e.created_at DESC`
+       ORDER BY e.created_at DESC`,
     );
 
     return res.json({ success: true, data: { employees: result.rows } });
@@ -450,7 +450,7 @@ export const updateEmployeePermission = async (req: Request, res: Response) => {
   try {
     const employeeResult = await pool.query(
       `SELECT employee_id FROM employee WHERE employee_id = $1`,
-      [employeeId]
+      [employeeId],
     );
 
     if (employeeResult.rows.length === 0) {
@@ -465,7 +465,7 @@ export const updateEmployeePermission = async (req: Request, res: Response) => {
        ON CONFLICT (employee_id, permission_key)
        DO UPDATE SET allowed = EXCLUDED.allowed, updated_at = NOW()
        RETURNING employee_id, permission_key, allowed`,
-      [employeeId, permission_key, allowed]
+      [employeeId, permission_key, allowed],
     );
 
     return res.json({
@@ -500,7 +500,7 @@ export const getCustomers = async (req: Request, res: Response) => {
         created_at,
         updated_at
        FROM customer_user
-       ORDER BY created_at DESC`
+       ORDER BY created_at DESC`,
     );
 
     return res.json({ success: true, data: { customers: result.rows } });
@@ -541,7 +541,7 @@ export const getCustomerById = async (req: Request, res: Response) => {
         updated_at
        FROM customer_user
        WHERE customer_id = $1`,
-      [customerId]
+      [customerId],
     );
 
     if (result.rows.length === 0) {
@@ -590,7 +590,7 @@ export const getCustomerMachines = async (req: Request, res: Response) => {
        LEFT JOIN product p ON m.product_id = p.product_id
        WHERE m.customer_id = $1
        ORDER BY m.created_at DESC`,
-      [customerId]
+      [customerId],
     );
 
     const machines = result.rows.map((row) => ({
@@ -634,7 +634,7 @@ export const getCustomerPartsRequests = async (req: Request, res: Response) => {
        JOIN machines m ON pr.machine_id = m.machine_id
        WHERE pr.customer_id = $1
        ORDER BY pr.created_at DESC`,
-      [customerId]
+      [customerId],
     );
     return res.json({ success: true, data: { requests: result.rows } });
   } catch (error) {
@@ -683,7 +683,7 @@ export const assignMachineToCustomer = async (req: Request, res: Response) => {
     // Verify customer exists
     const customerCheck = await pool.query(
       `SELECT customer_id FROM customer_user WHERE customer_id = $1`,
-      [customerId]
+      [customerId],
     );
     if (customerCheck.rows.length === 0) {
       return res.status(404).json({
@@ -695,7 +695,7 @@ export const assignMachineToCustomer = async (req: Request, res: Response) => {
     // Verify product exists
     const productCheck = await pool.query(
       `SELECT product_id, product_name FROM product WHERE product_id = $1`,
-      [productId]
+      [productId],
     );
     if (productCheck.rows.length === 0) {
       return res.status(400).json({
@@ -719,7 +719,7 @@ export const assignMachineToCustomer = async (req: Request, res: Response) => {
         purchase_date && String(purchase_date).trim() !== ""
           ? String(purchase_date).trim()
           : null,
-      ]
+      ],
     );
 
     const row = result.rows[0];
@@ -757,7 +757,7 @@ export const assignMachineToCustomer = async (req: Request, res: Response) => {
 export const getRoles = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      `SELECT role_id, role_name FROM roles ORDER BY role_name`
+      `SELECT role_id, role_name FROM roles ORDER BY role_name`,
     );
     return res.json({ success: true, data: { roles: result.rows } });
   } catch (error) {
@@ -772,7 +772,7 @@ export const getRoles = async (req: Request, res: Response) => {
 export const getDepartments = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      `SELECT dept_id, dept_name FROM department ORDER BY dept_name`
+      `SELECT dept_id, dept_name FROM department ORDER BY dept_name`,
     );
     return res.json({ success: true, data: { departments: result.rows } });
   } catch (error) {
@@ -839,7 +839,7 @@ export const uploadManualFile = async (req: Request, res: Response) => {
 
   try {
     const fileName = sanitizeFilename(file.originalname);
-    const filePath = `manuals/${Date.now()}-${fileName}`;
+    const filePath = `${Date.now()}-${fileName}`;
     const title = file.originalname.replace(/\.[^.]+$/, "");
     let savedPath: string;
 
@@ -860,7 +860,7 @@ export const uploadManualFile = async (req: Request, res: Response) => {
       `INSERT INTO machine_manuals (machine_id, product_id, title, file_url, uploaded_at)
        VALUES (NULL, NULL, $1, $2, NOW())
        RETURNING manual_id, title, file_url, uploaded_at, product_id`,
-      [title, savedPath]
+      [title, savedPath],
     );
     const manualRow = insertResult.rows[0];
     const url = await storage.resolveUrl("manuals", manualRow.file_url);
@@ -888,14 +888,14 @@ export const getManuals = async (_req: Request, res: Response) => {
     const result = await pool.query(
       `SELECT manual_id, title, file_url, uploaded_at, machine_id, product_id
        FROM machine_manuals
-       ORDER BY uploaded_at DESC`
+       ORDER BY uploaded_at DESC`,
     );
 
     const manuals = await Promise.all(
       result.rows.map(async (row) => ({
         ...row,
         url: await storage.resolveUrl("manuals", row.file_url),
-      }))
+      })),
     );
 
     return res.json({ success: true, data: { manuals } });
@@ -919,7 +919,7 @@ export const uploadBrochureFile = async (req: Request, res: Response) => {
 
   try {
     const fileName = sanitizeFilename(file.originalname);
-    const filePath = `brochures/${Date.now()}-${fileName}`;
+    const filePath = `${Date.now()}-${fileName}`;
     const title = file.originalname.replace(/\.[^.]+$/, "");
 
     let savedPath: string;
@@ -940,7 +940,7 @@ export const uploadBrochureFile = async (req: Request, res: Response) => {
       `INSERT INTO machine_brochures (machine_id, product_id, title, file_url, uploaded_at)
        VALUES (NULL, NULL, $1, $2, NOW())
        RETURNING brochure_id, title, file_url, uploaded_at, product_id`,
-      [title, savedPath]
+      [title, savedPath],
     );
     const brochureRow = insertResult.rows[0];
     const url = await storage.resolveUrl("brochures", brochureRow.file_url);
@@ -968,14 +968,14 @@ export const getBrochures = async (_req: Request, res: Response) => {
     const result = await pool.query(
       `SELECT brochure_id, title, file_url, uploaded_at, machine_id, product_id
        FROM machine_brochures
-       ORDER BY uploaded_at DESC`
+       ORDER BY uploaded_at DESC`,
     );
 
     const brochures = await Promise.all(
       result.rows.map(async (row) => ({
         ...row,
         url: await storage.resolveUrl("brochures", row.file_url),
-      }))
+      })),
     );
 
     return res.json({ success: true, data: { brochures } });
@@ -990,7 +990,7 @@ export const getBrochures = async (_req: Request, res: Response) => {
 
 export const uploadProductProfileImage = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   const file = (req as Request & { file?: Express.Multer.File }).file;
   if (!file) {
@@ -1002,7 +1002,7 @@ export const uploadProductProfileImage = async (
 
   try {
     const fileName = sanitizeFilename(file.originalname);
-    const filePath = `products/${Date.now()}-${fileName}`;
+    const filePath = `${Date.now()}-${fileName}`;
 
     let savedPath: string;
     try {
@@ -1054,7 +1054,7 @@ export const getMachines = async (req: Request, res: Response) => {
        FROM machines m
        LEFT JOIN product p ON m.product_id = p.product_id
        LEFT JOIN customer_user cu ON m.customer_id = cu.customer_id
-       ORDER BY m.created_at DESC`
+       ORDER BY m.created_at DESC`,
     );
     return res.json({ success: true, data: { machines: result.rows } });
   } catch (error) {
@@ -1062,6 +1062,599 @@ export const getMachines = async (req: Request, res: Response) => {
     return res
       .status(500)
       .json({ success: false, message: "Failed to fetch machines" });
+  }
+};
+
+// Product file uploads
+export const uploadProductManual = async (req: Request, res: Response) => {
+  const { productId } = req.params;
+  const file = (req as Request & { file?: Express.Multer.File }).file;
+
+  if (!productId) {
+    return res.status(400).json({
+      success: false,
+      message: "Product ID is required",
+    });
+  }
+
+  if (!file) {
+    return res.status(400).json({
+      success: false,
+      message: "No file uploaded",
+    });
+  }
+
+  try {
+    const fileName = sanitizeFilename(file.originalname);
+    const filePath = `${Date.now()}-${fileName}`;
+    const title = req.body.title || file.originalname.replace(/\.[^.]+$/, "");
+    let savedPath: string;
+
+    try {
+      const result = await storage.upload("manuals", filePath, file.buffer, {
+        contentType: file.mimetype,
+      });
+      savedPath = result.path;
+    } catch (error) {
+      logger.error("Upload product manual error", { error });
+      return res.status(500).json({
+        success: false,
+        message: "Failed to upload manual",
+      });
+    }
+
+    const insertResult = await pool.query(
+      `INSERT INTO machine_manuals (machine_id, product_id, title, file_url, uploaded_at)
+       VALUES (NULL, $1, $2, $3, NOW())
+       RETURNING manual_id, title, file_url, uploaded_at, product_id`,
+      [productId, title, savedPath],
+    );
+    const manualRow = insertResult.rows[0];
+    const url = await storage.resolveUrl("manuals", manualRow.file_url);
+
+    return res.json({
+      success: true,
+      data: {
+        manual: {
+          ...manualRow,
+          url,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error("Upload product manual error", { error });
+    console.error("Upload product manual error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload manual",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+export const uploadProductBrochure = async (req: Request, res: Response) => {
+  const { productId } = req.params;
+  const file = (req as Request & { file?: Express.Multer.File }).file;
+
+  if (!productId) {
+    return res.status(400).json({
+      success: false,
+      message: "Product ID is required",
+    });
+  }
+
+  if (!file) {
+    return res.status(400).json({
+      success: false,
+      message: "No file uploaded",
+    });
+  }
+
+  try {
+    const fileName = sanitizeFilename(file.originalname);
+    const filePath = `${Date.now()}-${fileName}`;
+    const title = req.body.title || file.originalname.replace(/\.[^.]+$/, "");
+    let savedPath: string;
+
+    try {
+      const result = await storage.upload("brochures", filePath, file.buffer, {
+        contentType: file.mimetype,
+      });
+      savedPath = result.path;
+    } catch (error) {
+      logger.error("Upload product brochure error", { error });
+      return res.status(500).json({
+        success: false,
+        message: "Failed to upload brochure",
+      });
+    }
+
+    const inserResult = await pool.query(
+      `INSERT INTO machine_brochures (machine_id, product_id, title, file_url, uploaded_at)
+       VALUES (NULL, $1, $2, $3, NOW())
+       RETURNING brochure_id, title, file_url, uploaded_at, product_id`,
+      [productId, title, savedPath],
+    );
+    const brochureRow = inserResult.rows[0];
+    const url = await storage.resolveUrl("brochures", brochureRow.file_url);
+
+    return res.json({
+      success: true,
+      data: {
+        brochure: {
+          ...brochureRow,
+          url,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error("Upload product brochure error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload brochure",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+export const uploadProductImage = async (req: Request, res: Response) => {
+  const { productId } = req.params;
+  const file = (req as Request & { file?: Express.Multer.File }).file;
+
+  if (!productId) {
+    return res.status(400).json({
+      success: false,
+      message: "Product ID is required",
+    });
+  }
+
+  if (!file) {
+    return res.status(400).json({
+      success: false,
+      message: "No file uploaded",
+    });
+  }
+
+  try {
+    // Determine if this is a brochure or gallery image based on the endpoint or request body
+    const type = req.body.type || "gallery"; // default to gallery
+    const bucket = type === "brochure" ? "brochures" : "gallery";
+    const table = type === "brochure" ? "machine_brochures" : "machine_gallery";
+
+    const fileName = sanitizeFilename(file.originalname);
+    const filePath = `${Date.now()}-${fileName}`;
+    const title = req.body.title || file.originalname.replace(/\.[^.]+$/, "");
+    let savedPath: string;
+
+    try {
+      const result = await storage.upload(bucket, filePath, file.buffer, {
+        contentType: file.mimetype,
+      });
+      savedPath = result.path;
+    } catch (error) {
+      logger.error(`Upload product ${type} error`, { error });
+      return res.status(500).json({
+        success: false,
+        message: `Failed to upload ${type}`,
+      });
+    }
+
+    let insertResult;
+    if (table === "machine_brochures") {
+      insertResult = await pool.query(
+        `INSERT INTO machine_brochures (machine_id, product_id, title, file_url, uploaded_at)
+         VALUES (NULL, $1, $2, $3, NOW())
+         RETURNING brochure_id AS id, title, file_url, uploaded_at, product_id`,
+        [productId, title, savedPath],
+      );
+    } else {
+      insertResult = await pool.query(
+        `INSERT INTO machine_gallery (machine_id, product_id, image_url, caption, uploaded_at)
+         VALUES (NULL, $1, $2, $3, NOW())
+         RETURNING gallery_id AS id, image_url AS file_url, caption AS title, uploaded_at, product_id`,
+        [productId, savedPath, title],
+      );
+    }
+
+    const row = insertResult.rows[0];
+    const url = await storage.resolveUrl(bucket, row.file_url);
+
+    return res.json({
+      success: true,
+      data: {
+        [type]: {
+          ...row,
+          url,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error("Upload product image error", { error });
+    console.error("Upload product image error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload image",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+export const uploadProductVideo = async (req: Request, res: Response) => {
+  const { productId } = req.params;
+  const file = (req as Request & { file?: Express.Multer.File }).file;
+
+  if (!productId) {
+    return res.status(400).json({
+      success: false,
+      message: "Product ID is required",
+    });
+  }
+
+  if (!file) {
+    return res.status(400).json({
+      success: false,
+      message: "No file uploaded",
+    });
+  }
+
+  try {
+    const fileName = sanitizeFilename(file.originalname);
+    const filePath = `${Date.now()}-${fileName}`; // Don't include bucket prefix
+    const title = req.body.title || file.originalname.replace(/\.[^.]+$/, "");
+    const video_type = req.body.video_type || "gallery";
+    let savedPath: string;
+
+    try {
+      const result = await storage.upload("videos", filePath, file.buffer, {
+        contentType: file.mimetype,
+      });
+      savedPath = result.path;
+    } catch (error) {
+      logger.error("Upload product video error", { error });
+      return res.status(500).json({
+        success: false,
+        message: "Failed to upload video",
+      });
+    }
+
+    const insertResult = await pool.query(
+      `INSERT INTO machine_videos (machine_id, product_id, video_type, title, video_url, uploaded_at)
+       VALUES (NULL, $1, $2, $3, $4, NOW())
+       RETURNING video_id, video_type, title, video_url, uploaded_at, product_id`,
+      [productId, video_type, title, savedPath],
+    );
+    const videoRow = insertResult.rows[0];
+    const url = await storage.resolveUrl("videos", videoRow.video_url);
+
+    return res.json({
+      success: true,
+      data: {
+        video: {
+          ...videoRow,
+          url,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error("Upload product video error", { error });
+    console.error("Upload product video error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload video",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+export const addProductVideo = async (req: Request, res: Response) => {
+  const { productId } = req.params;
+  const { video_url, video_type, title } = req.body;
+
+  if (!productId) {
+    return res.status(400).json({
+      success: false,
+      message: "Product ID is required",
+    });
+  }
+
+  if (!video_url) {
+    return res.status(400).json({
+      success: false,
+      message: "Video URL is required",
+    });
+  }
+
+  try {
+    const insertResult = await pool.query(
+      `INSERT INTO machine_videos (machine_id, product_id, video_type, title, video_url, uploaded_at)
+       VALUES (NULL, $1, $2, $3, $4, NOW())
+       RETURNING video_id, video_type, title, video_url, uploaded_at, product_id`,
+      [
+        productId,
+        video_type || "gallery",
+        title || "Untitled Video",
+        video_url,
+      ],
+    );
+    const videoRow = insertResult.rows[0];
+
+    return res.json({
+      success: true,
+      data: {
+        video: videoRow,
+      },
+    });
+  } catch (error) {
+    logger.error("Add product video URL error", { error });
+    console.error("Add product video URL error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to add video URL",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+export const uploadProductSpecification = async (
+  req: Request,
+  res: Response,
+) => {
+  const { productId } = req.params;
+  const file = (req as Request & { file?: Express.Multer.File }).file;
+
+  if (!productId) {
+    return res.status(400).json({
+      success: false,
+      message: "Product ID is required",
+    });
+  }
+
+  if (!file) {
+    return res.status(400).json({
+      success: false,
+      message: "No file uploaded",
+    });
+  }
+
+  // Specifications table doesn't support file uploads - it's for key-value pairs
+  // Return a helpful error message
+  return res.status(400).json({
+    success: false,
+    message:
+      "Specification file uploads are not supported. The specifications table is designed for text key-value pairs. Please use the manual section for documentation files.",
+  });
+};
+
+export const deleteProductManual = async (req: Request, res: Response) => {
+  const { productId, manualId } = req.params;
+
+  if (!productId || !manualId) {
+    return res.status(400).json({
+      success: false,
+      message: "Product ID and manual ID are required",
+    });
+  }
+
+  try {
+    // Check if manual exists
+    const result = await pool.query(
+      `SELECT manual_id FROM machine_manuals WHERE manual_id = $1 AND product_id = $2`,
+      [manualId, productId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Manual not found",
+      });
+    }
+
+    // Delete from database
+    await pool.query(
+      `DELETE FROM machine_manuals WHERE manual_id = $1 AND product_id = $2`,
+      [manualId, productId],
+    );
+
+    // Note: File remains in storage (no delete method implemented yet)
+    // File can be cleaned up later with a maintenance script
+
+    return res.json({
+      success: true,
+      message: "Manual deleted successfully",
+    });
+  } catch (error) {
+    logger.error("Delete product manual error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete manual",
+    });
+  }
+};
+
+export const deleteProductBrochure = async (req: Request, res: Response) => {
+  const { productId, brochureId } = req.params;
+
+  if (!productId || !brochureId) {
+    return res.status(400).json({
+      success: false,
+      message: "Product ID and brochure ID are required",
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT brochure_id FROM machine_brochures WHERE brochure_id = $1 AND product_id = $2`,
+      [brochureId, productId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Brochure not found",
+      });
+    }
+
+    await pool.query(
+      `DELETE FROM machine_brochures WHERE brochure_id = $1 AND product_id = $2`,
+      [brochureId, productId],
+    );
+
+    return res.json({
+      success: true,
+      message: "Brochure deleted successfully",
+    });
+  } catch (error) {
+    logger.error("Delete product brochure error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete brochure",
+    });
+  }
+};
+
+export const deleteProductImage = async (req: Request, res: Response) => {
+  const { productId, imageId } = req.params;
+  const { type } = req.query; // "gallery" or "brochure"
+
+  if (!productId || !imageId) {
+    return res.status(400).json({
+      success: false,
+      message: "Product ID and image ID are required",
+    });
+  }
+
+  try {
+    const isBrochure = type === "brochure";
+    const table = isBrochure ? "machine_brochures" : "machine_gallery";
+    const idColumn = isBrochure ? "brochure_id" : "gallery_id";
+
+    // Check if image exists
+    const result = await pool.query(
+      `SELECT ${idColumn} FROM ${table} WHERE ${idColumn} = $1 AND product_id = $2`,
+      [imageId, productId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Image not found",
+      });
+    }
+
+    // Delete from database
+    await pool.query(
+      `DELETE FROM ${table} WHERE ${idColumn} = $1 AND product_id = $2`,
+      [imageId, productId],
+    );
+
+    // Note: File remains in storage (no delete method implemented yet)
+    // File can be cleaned up later with a maintenance script
+
+    return res.json({
+      success: true,
+      message: "Image deleted successfully",
+    });
+  } catch (error) {
+    logger.error("Delete product image error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete image",
+    });
+  }
+};
+
+export const deleteProductVideo = async (req: Request, res: Response) => {
+  const { productId, videoId } = req.params;
+
+  if (!productId || !videoId) {
+    return res.status(400).json({
+      success: false,
+      message: "Product ID and video ID are required",
+    });
+  }
+
+  try {
+    // Get the video info before deleting (to verify it exists)
+    const result = await pool.query(
+      `SELECT video_id FROM machine_videos WHERE video_id = $1 AND product_id = $2`,
+      [videoId, productId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Video not found",
+      });
+    }
+
+    // Delete from database
+    await pool.query(
+      `DELETE FROM machine_videos WHERE video_id = $1 AND product_id = $2`,
+      [videoId, productId],
+    );
+
+    // Note: Video file remains in storage if not YouTube (no delete method implemented yet)
+    // File can be cleaned up later with a maintenance script
+
+    return res.json({
+      success: true,
+      message: "Video deleted successfully",
+    });
+  } catch (error) {
+    logger.error("Delete product video error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete video",
+    });
+  }
+};
+
+export const deleteProductSpecification = async (
+  req: Request,
+  res: Response,
+) => {
+  const { productId, specId } = req.params;
+
+  if (!productId || !specId) {
+    return res.status(400).json({
+      success: false,
+      message: "Product ID and specification ID are required",
+    });
+  }
+
+  try {
+    // Check if specification exists
+    const result = await pool.query(
+      `SELECT spec_id FROM machine_specifications WHERE spec_id = $1 AND product_id = $2`,
+      [specId, productId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Specification not found",
+      });
+    }
+
+    // Delete from database
+    await pool.query(
+      `DELETE FROM machine_specifications WHERE spec_id = $1 AND product_id = $2`,
+      [specId, productId],
+    );
+
+    // Note: File remains in storage if file_url exists (no delete method implemented yet)
+    // File can be cleaned up later with a maintenance script
+
+    return res.json({
+      success: true,
+      message: "Specification deleted successfully",
+    });
+  } catch (error) {
+    logger.error("Delete product specification error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete specification",
+    });
   }
 };
 
@@ -1081,7 +1674,7 @@ export const createEmployee = async (req: Request, res: Response) => {
   try {
     const existing = await pool.query(
       `SELECT employee_id FROM employee WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2)`,
-      [username, email]
+      [username, email],
     );
 
     if (existing.rows.length > 0) {
@@ -1109,7 +1702,7 @@ export const createEmployee = async (req: Request, res: Response) => {
         username,
         hashedPassword,
         email,
-      ]
+      ],
     );
 
     logger.info("Employee created", {
@@ -1158,7 +1751,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
         role_id,
         department_id,
         employeeId,
-      ]
+      ],
     );
 
     if (result.rows.length === 0) {
@@ -1200,7 +1793,7 @@ export const uploadGalleryImage = async (req: Request, res: Response) => {
   try {
     const machineResult = await pool.query(
       `SELECT product_id FROM machines WHERE machine_id = $1`,
-      [parsedMachineId]
+      [parsedMachineId],
     );
     const productId = machineResult.rows[0]?.product_id ?? null;
     if (!productId) {
@@ -1225,7 +1818,7 @@ export const uploadGalleryImage = async (req: Request, res: Response) => {
     const insert = await pool.query(
       `INSERT INTO machine_gallery (machine_id, product_id, image_url, uploaded_at)
       VALUES ($1, $2, $3, NOW()) RETURNING gallery_id, machine_id, image_url, uploaded_at, product_id`,
-      [parsedMachineId, productId, savedPath]
+      [parsedMachineId, productId, savedPath],
     );
 
     const url = await storage.resolveUrl("gallery", savedPath);
@@ -1262,7 +1855,7 @@ export const uploadMachineVideo = async (req: Request, res: Response) => {
   try {
     const machineResult = await pool.query(
       `SELECT product_id FROM machines WHERE machine_id = $1`,
-      [parsedMachineId]
+      [parsedMachineId],
     );
     const productId = machineResult.rows[0]?.product_id ?? null;
     if (!productId) {
@@ -1295,7 +1888,7 @@ export const uploadMachineVideo = async (req: Request, res: Response) => {
         return res.status(413).json({
           success: false,
           message: `File size (${Math.round(
-            file.size / 1024 / 1024
+            file.size / 1024 / 1024,
           )}MB) exceeds limit. Maximum file size is 50MB`,
         });
       }
@@ -1310,7 +1903,7 @@ export const uploadMachineVideo = async (req: Request, res: Response) => {
       `INSERT INTO machine_videos (machine_id, product_id, video_type, title, video_url, uploaded_at)
       VALUES ($1, $2, $3, $4, $5, NOW())
       RETURNING video_id, machine_id, product_id, video_type, title, video_url, uploaded_at`,
-      [parsedMachineId, productId, safeType, file.originalname, savedPath]
+      [parsedMachineId, productId, safeType, file.originalname, savedPath],
     );
 
     const url = await storage.resolveUrl("videos", savedPath);
@@ -1336,7 +1929,7 @@ export const uploadMachineVideo = async (req: Request, res: Response) => {
 export const getSettings = async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      `SELECT value FROM app_settings WHERE key = 'storage_mode' LIMIT 1`
+      `SELECT value FROM app_settings WHERE key = 'storage_mode' LIMIT 1`,
     );
 
     const storageMode = (result.rows[0]?.value ?? "cloud") as "cloud" | "local";
@@ -1369,7 +1962,7 @@ export const updateSettings = async (req: Request, res: Response) => {
       VALUES ('storage_mode', $1, NOW())
       ON CONFLICT (key)
       DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
-      [storage_mode]
+      [storage_mode],
     );
 
     return res.json({

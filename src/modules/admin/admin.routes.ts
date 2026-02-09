@@ -16,9 +16,12 @@ import {
   addMachineForAdmin,
   addMachineAssetsForAdmin,
 } from "../machines/machine.controller";
-import { employeeAuth, requirePermission, requireAdminOrPermission } from "../../middlewares/auth.middleware";
+import {
+  employeeAuth,
+  requirePermission,
+  requireAdminOrPermission,
+} from "../../middlewares/auth.middleware";
 import { multerErrorHandler } from "../../middlewares/multer-error.middleware";
-
 
 const router = express.Router();
 const requireMachinesManage = requirePermission("machines_manage");
@@ -27,15 +30,17 @@ const requireManualsManage = requirePermission("manuals_manage");
 const requireBrochuresManage = requirePermission("brochures_manage");
 const requireProductsManage = requirePermission("products_manage");
 const requireTrackingManage = requirePermission("tracking_manage");
-const requireAccountRequestsManage = requirePermission("account_requests_manage");
+const requireAccountRequestsManage = requirePermission(
+  "account_requests_manage",
+);
 const requirePartsRequestsManage = requirePermission("parts_requests_manage");
 const requireQuotesManage = requirePermission("quotes_manage");
 const requireCustomersManage = requireAdminOrPermission("customers_manage");
 const requirePermissionsManage = requireAdminOrPermission("permissions_manage");
-// File size limit set to 50MB to match Supabase storage limits
+// File size limit set to 200MB for videos and large files
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB (Supabase free tier limit)
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB for video files
 });
 
 router.get(
@@ -58,7 +63,12 @@ router.get(
 );
 
 // User management
-router.get("/users/employees", employeeAuth, requirePermissionsManage, controller.getEmployees);
+router.get(
+  "/users/employees",
+  employeeAuth,
+  requirePermissionsManage,
+  controller.getEmployees,
+);
 router.post(
   "/users/employees",
   employeeAuth,
@@ -80,7 +90,12 @@ router.put(
   validate(updateEmployeePermissionSchema, "body"),
   controller.updateEmployeePermission,
 );
-router.get("/users/customers", employeeAuth, requireCustomersManage, controller.getCustomers);
+router.get(
+  "/users/customers",
+  employeeAuth,
+  requireCustomersManage,
+  controller.getCustomers,
+);
 router.get(
   "/users/customers/:customerId",
   employeeAuth,
@@ -98,7 +113,7 @@ router.get(
   employeeAuth,
   requireCustomersManage,
   controller.getCustomerPartsRequests,
-)
+);
 
 router.post(
   "/customers/:customerId/machines",
@@ -108,17 +123,46 @@ router.post(
   validate(assignMachineToCustomerSchema, "body"),
   controller.assignMachineToCustomer,
 );
-router.get("/users/roles", employeeAuth, requirePermissionsManage, controller.getRoles);
-router.get("/users/departments", employeeAuth, requirePermissionsManage, controller.getDepartments);
-router.get("/requests/tracking", employeeAuth, requireTrackingManage, (_req, res) =>
-  res.json({ success: true, data: { message: "Tracking access granted" } }),
+router.get(
+  "/users/roles",
+  employeeAuth,
+  requirePermissionsManage,
+  controller.getRoles,
+);
+router.get(
+  "/users/departments",
+  employeeAuth,
+  requirePermissionsManage,
+  controller.getDepartments,
+);
+router.get(
+  "/requests/tracking",
+  employeeAuth,
+  requireTrackingManage,
+  (_req, res) =>
+    res.json({ success: true, data: { message: "Tracking access granted" } }),
 );
 router.get("/quotes", employeeAuth, requireQuotesManage, (_req, res) =>
   res.json({ success: true, data: { message: "Quotes access granted" } }),
 );
-router.get("/machines", employeeAuth, requireMachinesManage, controller.getMachines);
-router.get("/manuals", employeeAuth, requireManualsManage, controller.getManuals);
-router.get("/brochures", employeeAuth, requireBrochuresManage, controller.getBrochures);
+router.get(
+  "/machines",
+  employeeAuth,
+  requireMachinesManage,
+  controller.getMachines,
+);
+router.get(
+  "/manuals",
+  employeeAuth,
+  requireManualsManage,
+  controller.getManuals,
+);
+router.get(
+  "/brochures",
+  employeeAuth,
+  requireBrochuresManage,
+  controller.getBrochures,
+);
 router.post(
   "/manuals/upload",
   employeeAuth,
@@ -142,6 +186,94 @@ router.post(
   upload.single("file"),
   multerErrorHandler,
   controller.uploadProductProfileImage,
+);
+
+// Product file management routes
+router.post(
+  "/products/:productId/manuals",
+  employeeAuth,
+  requireProductsManage,
+  upload.single("file"),
+  multerErrorHandler,
+  controller.uploadProductManual,
+);
+
+router.post(
+  "/products/:productId/brochures",
+  employeeAuth,
+  requireProductsManage,
+  upload.single("file"),
+  multerErrorHandler,
+  controller.uploadProductBrochure,
+);
+
+router.post(
+  "/products/:productId/images",
+  employeeAuth,
+  requireProductsManage,
+  upload.single("file"),
+  multerErrorHandler,
+  controller.uploadProductImage,
+);
+
+router.post(
+  "/products/:productId/videos/upload",
+  employeeAuth,
+  requireProductsManage,
+  upload.single("file"),
+  multerErrorHandler,
+  controller.uploadProductVideo,
+);
+
+router.post(
+  "/products/:productId/videos",
+  employeeAuth,
+  requireProductsManage,
+  controller.addProductVideo,
+);
+
+router.post(
+  "/products/:productId/specifications",
+  employeeAuth,
+  requireProductsManage,
+  upload.single("file"),
+  multerErrorHandler,
+  controller.uploadProductSpecification,
+);
+
+router.delete(
+  "/products/:productId/manuals/:manualId",
+  employeeAuth,
+  requireProductsManage,
+  controller.deleteProductManual,
+);
+
+router.delete(
+  "/products/:productId/brochures/:brochureId",
+  employeeAuth,
+  requireProductsManage,
+  controller.deleteProductBrochure,
+);
+
+router.delete(
+  "/products/:productId/images/:imageId",
+  employeeAuth,
+  requireProductsManage,
+  controller.deleteProductImage,
+);
+
+router.delete(
+  "/products/:productId/videos/:videoId",
+  employeeAuth,
+  requireProductsManage,
+  controller.deleteProductVideo,
+);
+
+router.delete(
+  "/products/:productId/specifications/:specId",
+  employeeAuth,
+  requireProductsManage,
+  controller.deleteProductSpecification,
 );
 
 // Admin machine creation
