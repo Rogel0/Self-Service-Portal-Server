@@ -10,6 +10,13 @@ import machineRoutes from "./modules/machines/machine.routes";
 import cookieParser from "cookie-parser";
 import path from "path";
 import { getUploadsDir } from "./services/storage";
+import partsRequestRoutes from "./modules/parts-request/parts-request.routes";
+import quoteRequestRoutes from "./modules/quote-request/quote-request.routes";
+import adminRoutes from "./modules/admin/admin.routes";
+import salesRoutes from "./modules/sales/sales.routes";
+import logisticsRoutes from "./modules/logistics/logistics.routes";
+import productsRoutes from "./modules/products/products.routes";
+import serviceRequestRoutes from "./modules/service-request/service-request.routes";
 
 const app = express();
 
@@ -17,7 +24,7 @@ const app = express();
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
-  })
+  }),
 );
 
 // Rate limiting
@@ -47,7 +54,7 @@ app.use(
     setHeaders: (res) => {
       res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     },
-  })
+  }),
 );
 
 // Routes
@@ -61,31 +68,28 @@ app.use("/api/auth/customer", customerAuthRoutes);
 // Simple profile endpoint for client-side profile fetching (returns employee/customer)
 app.use("/api/profile", profileRoutes);
 
+//Service request routes
+app.use("/api/service-requests", serviceRequestRoutes);
+
 // Machine routes
 app.use("/api/machines", machineRoutes);
 
 // Parts request routes
-import partsRequestRoutes from "./modules/parts-request/parts-request.routes";
 app.use("/api/parts-requests", partsRequestRoutes);
 
 // Quote request routes
-import quoteRequestRoutes from "./modules/quote-request/quote-request.routes";
 app.use("/api/quote-requests", quoteRequestRoutes);
 
 // Admin routes
-import adminRoutes from "./modules/admin/admin.routes";
 app.use("/api/admin", adminRoutes);
 
 // Sales routes
-import salesRoutes from "./modules/sales/sales.routes";
 app.use("/api/sales", salesRoutes);
 
 // Logistics routes
-import logisticsRoutes from "./modules/logistics/logistics.routes";
 app.use("/api/logistics", logisticsRoutes);
 
 // Products routes
-import productsRoutes from "./modules/products/products.routes";
 app.use("/api/products", productsRoutes);
 
 // Health check

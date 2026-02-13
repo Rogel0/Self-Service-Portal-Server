@@ -1976,3 +1976,186 @@ export const updateSettings = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const getCustomerQuoteRequests = async (req: Request, res: Response) => {
+  try {
+    const raw = req.params.customerId;
+    const customerId = parseInt(Array.isArray(raw) ? raw[0] : raw, 10);
+    if (isNaN(customerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid customer ID",
+      });
+    }
+    const result = await pool.query(
+      `SELECT 
+        qr.quote_id as id,
+        qr.status,
+        qr.total_amount,
+        qr.notes as description,
+        'Quote Request' as subject,
+        qr.submitted_at as created_at,
+        m.model_number as machine_name,
+        NULL as quantity
+       FROM quote_request qr
+       LEFT JOIN quote_items qi ON qr.quote_id = qi.quote_id
+       LEFT JOIN parts p ON qi.parts_id = p.parts_id
+       LEFT JOIN machines m ON m.machine_id = (
+         SELECT machine_id FROM machines WHERE customer_id = qr.customer_id LIMIT 1
+       )
+       WHERE qr.customer_id = $1
+       GROUP BY qr.quote_id, qr.status, qr.total_amount, qr.notes, qr.submitted_at, m.model_number
+       ORDER BY qr.submitted_at DESC`,
+      [customerId],
+    );
+    return res.json(result.rows);
+  } catch (error) {
+    logger.error("Get customer quote requests error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch quote requests",
+    });
+  }
+};
+
+export const createCustomerQuoteRequest = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const raw = req.params.customerId;
+    const customerId = parseInt(Array.isArray(raw) ? raw[0] : raw, 10);
+    if (isNaN(customerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid customer ID",
+      });
+    }
+  } catch (error) {
+    logger.error("Create customer quote request error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create quote request",
+    });
+  }
+};
+
+export const getCustomerQuotes = async (req: Request, res: Response) => {
+  try {
+    const raw = req.params.customerId;
+    const customerId = parseInt(Array.isArray(raw) ? raw[0] : raw, 10);
+    if (isNaN(customerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid customer ID",
+      });
+    }
+    const result = await pool.query(
+      `SELECT 
+        sr.service_request_id as id,
+        sr.subject,
+        sr.description,
+        sr.priority,
+        sr.status,
+        sr.created_at,
+        m.model_number as machine_name,
+        NULL as quantity
+       FROM service_request sr
+       LEFT JOIN machines m ON sr.machine_id = m.machine_id
+       WHERE sr.customer_id = $1
+       ORDER BY sr.created_at DESC`,
+      [customerId],
+    );
+    return res.json(result.rows);
+  } catch (error) {
+    logger.error("Get customer quotes error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch customer service requests",
+    });
+  }
+};
+
+export const getCustomerServiceRequests = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const raw = req.params.customerId;
+    const customerId = parseInt(Array.isArray(raw) ? raw[0] : raw, 10);
+    if (isNaN(customerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid customer ID",
+      });
+    }
+    const result = await pool.query(
+      `SELECT
+        sr.service_request_id as id,
+        sr.subject,
+        sr.description,
+        sr.priority,
+        sr.status,
+        sr.created_at,
+        m.model_number as machine_name,
+        NULL as quantity
+        FROM service_request sr
+        LEFT JOIN machines m ON sr.machine_id = m.machine_id
+        WHERE sr.customer_id = $1
+        ORDER BY sr.created_at DESC`,
+      [customerId],
+    );
+    return res.json(result.rows);
+  } catch (error) {
+    logger.error("Get customer service requests error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch customer service requests",
+    });
+  }
+};
+
+export const createCustomerServiceRequest = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const raw = req.params.customerId;
+    const customerId = parseInt(Array.isArray(raw) ? raw[0] : raw, 10);
+    if (isNaN(customerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid customer ID",
+      });
+    }
+
+    const { machine_id, subject, description, priority } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO service_request 
+       (customer_id, machine_id, subject, description, priority, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
+       RETURNING service_request_id as id, customer_id, machine_id, subject, description, priority, status, created_at`,
+      [
+        customerId,
+        machine_id || null,
+        subject,
+        description || null,
+        priority || "medium",
+      ],
+    );
+
+    logger.info("Service request created via admin", {
+      service_request_id: result.rows[0].id,
+      customer_id: customerId,
+    });
+
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    logger.error("Create customer service request error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create service request",
+    });
+  }
+};

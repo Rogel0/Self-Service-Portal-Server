@@ -115,6 +115,34 @@ router.get(
   controller.getCustomerPartsRequests,
 );
 
+router.get(
+  "/customers/:customerId/quote-requests",
+  employeeAuth,
+  requireCustomersManage,
+  controller.getCustomerQuoteRequests,
+);
+
+router.post(
+  "/customers/:customerId/quote-requests",
+  employeeAuth,
+  requireCustomersManage,
+  controller.createCustomerQuoteRequest,
+);
+
+router.get(
+  "/customers/:customerId/service-requests",
+  employeeAuth,
+  requireCustomersManage,
+  controller.getCustomerServiceRequests,
+);
+
+router.post(
+  "/customers/:customerId/service-requests",
+  employeeAuth,
+  requireCustomersManage,
+  controller.createCustomerServiceRequest,
+);
+
 router.post(
   "/customers/:customerId/machines",
   employeeAuth,
