@@ -13,16 +13,18 @@ export const createServiceRequest = async (req: Request, res: Response) => {
   }
 
   try {
-    const { machineId, subject, description, priority } = req.body;
+    // const { machineId, subject, description, priority } = req.body;
+    const { machine_id, subject, description, priority } = req.body;
 
     const result = await pool.query(
       `INSERT INTO service_request 
-       (customer_id, machine_id, subject, description, priority, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
+      (customer_id, machine_id, subject, description, priority, status, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, 'pending', NOW(), NOW())
        RETURNING service_request_id as id, customer_id, machine_id, subject, description, priority, status, created_at`,
       [
         customerId,
-        machineId || null,
+        // machineId || null,
+        machine_id || null,
         subject,
         description || null,
         priority || "medium",
@@ -79,10 +81,7 @@ export const getMyServiceRequests = async (req: Request, res: Response) => {
       [customerId],
     );
 
-    return res.json({
-      success: true,
-      data: { requests: result.rows },
-    });
+    return res.json(result.rows);
   } catch (error) {
     logger.error("Get service requests error", { error });
     return res.status(500).json({
