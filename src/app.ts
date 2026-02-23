@@ -17,6 +17,7 @@ import salesRoutes from "./modules/sales/sales.routes";
 import logisticsRoutes from "./modules/logistics/logistics.routes";
 import productsRoutes from "./modules/products/products.routes";
 import serviceRequestRoutes from "./modules/service-request/service-request.routes";
+import adminServiceRequestRoutes from "./modules/service-request/service-request.admin.routes";
 
 const app = express();
 
@@ -70,6 +71,8 @@ app.use("/api/profile", profileRoutes);
 
 //Service request routes
 app.use("/api/service-requests", serviceRequestRoutes);
+
+app.use("/api/admin/service-requests", adminServiceRequestRoutes);
 
 // Machine routes
 app.use("/api/machines", machineRoutes);
