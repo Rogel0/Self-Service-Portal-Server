@@ -347,7 +347,13 @@ export const getEmployees = async (req: Request, res: Response) => {
         COALESCE(ep_customers.allowed, dp_customers.allowed, false) AS customers_manage,
         CASE WHEN ep_customers.allowed IS NOT NULL THEN 'override' WHEN dp_customers.allowed IS NOT NULL THEN 'department' ELSE 'none' END AS customers_manage_source,
         COALESCE(ep_permissions.allowed, dp_permissions.allowed, false) AS permissions_manage,
-        CASE WHEN ep_permissions.allowed IS NOT NULL THEN 'override' WHEN dp_permissions.allowed IS NOT NULL THEN 'department' ELSE 'none' END AS permissions_manage_source
+        CASE WHEN ep_permissions.allowed IS NOT NULL THEN 'override' WHEN dp_permissions.allowed IS NOT NULL THEN 'department' ELSE 'none' END AS permissions_manage_source,
+        COALESCE(ep_service.allowed, dp_service.allowed, false) AS service_requests_manage,
+        CASE
+          WHEN ep_service.allowed IS NOT NULL THEN 'override'
+          WHEN dp_service.allowed IS NOT NULL THEN 'department'
+          ELSE 'none'
+        END AS service_requests_manage_source
        FROM employee e
        LEFT JOIN roles r ON e.role_id = r.role_id
        LEFT JOIN department d ON e.department_id = d.dept_id
@@ -411,13 +417,19 @@ export const getEmployees = async (req: Request, res: Response) => {
        LEFT JOIN department_permission dp_customers
         ON e.department_id = dp_customers.department_id
         AND dp_customers.permission_key = 'customers_manage'
-       LEFT JOIN employee_permission ep_permissions
-        ON e.employee_id = ep_permissions.employee_id
-        AND ep_permissions.permission_key = 'permissions_manage'
-       LEFT JOIN department_permission dp_permissions
-        ON e.department_id = dp_permissions.department_id
-        AND dp_permissions.permission_key = 'permissions_manage'
-       ORDER BY e.created_at DESC`,
+      LEFT JOIN employee_permission ep_permissions
+       ON e.employee_id = ep_permissions.employee_id
+       AND ep_permissions.permission_key = 'permissions_manage'
+      LEFT JOIN department_permission dp_permissions
+       ON e.department_id = dp_permissions.department_id
+       AND dp_permissions.permission_key = 'permissions_manage'
+      LEFT JOIN employee_permission ep_service
+       ON e.employee_id = ep_service.employee_id
+       AND ep_service.permission_key = 'service_requests_manage'
+      LEFT JOIN department_permission dp_service
+       ON e.department_id = dp_service.department_id
+       AND dp_service.permission_key = 'service_requests_manage'
+      ORDER BY e.created_at DESC`,
     );
 
     return res.json({ success: true, data: { employees: result.rows } });

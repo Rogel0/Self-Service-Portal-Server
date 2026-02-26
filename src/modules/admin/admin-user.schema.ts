@@ -31,6 +31,7 @@ export const updateEmployeePermissionSchema = z.object({
     "account_requests_manage",
     "parts_requests_manage",
     "quotes_manage",
+    "service_requests_manage",
     "customers_manage",
     "permissions_manage",
   ]),
