@@ -216,8 +216,10 @@ router.get("/me", (req: Request, res: Response) => {
     (req.headers.authorization?.startsWith("Bearer ")
       ? req.headers.authorization.split(" ")[1]
       : undefined);
-  if (!token)
+  if (!token) {
+    res.clearCookie("token", getClearCookieOptions());
     return res.status(401).json({ success: false, message: "No token" });
+  }
   try {
     const payload = verifyToken(token);
     if (!payload?.employee_id) {
@@ -241,84 +243,70 @@ router.get("/me", (req: Request, res: Response) => {
          FROM employee e
          JOIN department d ON e.department_id = d.dept_id
          LEFT JOIN employee_permission ep_machines
-           ON e.employee_id = ep_machines.employee_id
-          AND ep_machines.permission_key = 'machines_manage'
+           ON e.employee_id = ep_machines.employee_id AND ep_machines.permission_key = 'machines_manage'
          LEFT JOIN department_permission dp_machines
-           ON e.department_id = dp_machines.department_id
-          AND dp_machines.permission_key = 'machines_manage'
+           ON e.department_id = dp_machines.department_id AND dp_machines.permission_key = 'machines_manage'
          LEFT JOIN employee_permission ep_add
-           ON e.employee_id = ep_add.employee_id
-          AND ep_add.permission_key = 'machines_add'
+           ON e.employee_id = ep_add.employee_id AND ep_add.permission_key = 'machines_add'
          LEFT JOIN department_permission dp_add
-           ON e.department_id = dp_add.department_id
-          AND dp_add.permission_key = 'machines_add'
+           ON e.department_id = dp_add.department_id AND dp_add.permission_key = 'machines_add'
          LEFT JOIN employee_permission ep_manuals
-           ON e.employee_id = ep_manuals.employee_id
-          AND ep_manuals.permission_key = 'manuals_manage'
+           ON e.employee_id = ep_manuals.employee_id AND ep_manuals.permission_key = 'manuals_manage'
          LEFT JOIN department_permission dp_manuals
-           ON e.department_id = dp_manuals.department_id
-          AND dp_manuals.permission_key = 'manuals_manage'
+           ON e.department_id = dp_manuals.department_id AND dp_manuals.permission_key = 'manuals_manage'
          LEFT JOIN employee_permission ep_brochures
-           ON e.employee_id = ep_brochures.employee_id
-          AND ep_brochures.permission_key = 'brochures_manage'
+           ON e.employee_id = ep_brochures.employee_id AND ep_brochures.permission_key = 'brochures_manage'
          LEFT JOIN department_permission dp_brochures
-           ON e.department_id = dp_brochures.department_id
-          AND dp_brochures.permission_key = 'brochures_manage'
+           ON e.department_id = dp_brochures.department_id AND dp_brochures.permission_key = 'brochures_manage'
          LEFT JOIN employee_permission ep_products
-           ON e.employee_id = ep_products.employee_id
-          AND ep_products.permission_key = 'products_manage'
+           ON e.employee_id = ep_products.employee_id AND ep_products.permission_key = 'products_manage'
          LEFT JOIN department_permission dp_products
-           ON e.department_id = dp_products.department_id
-          AND dp_products.permission_key = 'products_manage'
+           ON e.department_id = dp_products.department_id AND dp_products.permission_key = 'products_manage'
          LEFT JOIN employee_permission ep_tracking
-           ON e.employee_id = ep_tracking.employee_id
-          AND ep_tracking.permission_key = 'tracking_manage'
+           ON e.employee_id = ep_tracking.employee_id AND ep_tracking.permission_key = 'tracking_manage'
          LEFT JOIN department_permission dp_tracking
-           ON e.department_id = dp_tracking.department_id
-          AND dp_tracking.permission_key = 'tracking_manage'
+           ON e.department_id = dp_tracking.department_id AND dp_tracking.permission_key = 'tracking_manage'
          LEFT JOIN employee_permission ep_accounts
-           ON e.employee_id = ep_accounts.employee_id
-          AND ep_accounts.permission_key = 'account_requests_manage'
+           ON e.employee_id = ep_accounts.employee_id AND ep_accounts.permission_key = 'account_requests_manage'
          LEFT JOIN department_permission dp_accounts
-           ON e.department_id = dp_accounts.department_id
-          AND dp_accounts.permission_key = 'account_requests_manage'
+           ON e.department_id = dp_accounts.department_id AND dp_accounts.permission_key = 'account_requests_manage'
          LEFT JOIN employee_permission ep_parts
-           ON e.employee_id = ep_parts.employee_id
-          AND ep_parts.permission_key = 'parts_requests_manage'
+           ON e.employee_id = ep_parts.employee_id AND ep_parts.permission_key = 'parts_requests_manage'
          LEFT JOIN department_permission dp_parts
-           ON e.department_id = dp_parts.department_id
-          AND dp_parts.permission_key = 'parts_requests_manage'
+           ON e.department_id = dp_parts.department_id AND dp_parts.permission_key = 'parts_requests_manage'
          LEFT JOIN employee_permission ep_quotes
-           ON e.employee_id = ep_quotes.employee_id
-          AND ep_quotes.permission_key = 'quotes_manage'
+           ON e.employee_id = ep_quotes.employee_id AND ep_quotes.permission_key = 'quotes_manage'
          LEFT JOIN department_permission dp_quotes
-           ON e.department_id = dp_quotes.department_id
-          AND dp_quotes.permission_key = 'quotes_manage'
+           ON e.department_id = dp_quotes.department_id AND dp_quotes.permission_key = 'quotes_manage'
          LEFT JOIN employee_permission ep_customers
-          ON e.employee_id = ep_customers.employee_id
-          AND ep_customers.permission_key = 'customers_manage'
+          ON e.employee_id = ep_customers.employee_id AND ep_customers.permission_key = 'customers_manage'
          LEFT JOIN department_permission dp_customers
-          ON e.department_id = dp_customers.department_id
-          AND dp_customers.permission_key = 'customers_manage'
+          ON e.department_id = dp_customers.department_id AND dp_customers.permission_key = 'customers_manage'
          LEFT JOIN employee_permission ep_permissions
-           ON e.employee_id = ep_permissions.employee_id
-           AND ep_permissions.permission_key = 'permissions_manage'
+           ON e.employee_id = ep_permissions.employee_id AND ep_permissions.permission_key = 'permissions_manage'
          LEFT JOIN department_permission dp_permissions
-           ON e.department_id = dp_permissions.department_id
-           AND dp_permissions.permission_key = 'permissions_manage'
+           ON e.department_id = dp_permissions.department_id AND dp_permissions.permission_key = 'permissions_manage'
          WHERE e.employee_id = $1
          LIMIT 1`,
         [payload.employee_id],
       )
       .then((result) => {
         if (!result.rows.length) {
+          res.clearCookie("token", getClearCookieOptions());
           return res
             .status(404)
             .json({ success: false, message: "User not found" });
         }
         return res.json({ success: true, data: { employee: result.rows[0] } });
+      })
+      .catch((err) => {
+        logger.error("Database error in /me:", err);
+        res.clearCookie("token", getClearCookieOptions());
+        return res
+          .status(500)
+          .json({ success: false, message: "User not found" });
       });
-  } catch {
+  } catch (empError) {
     try {
       const payload = verifyCustomerToken(token);
       return pool
@@ -339,8 +327,20 @@ router.get("/me", (req: Request, res: Response) => {
             success: true,
             data: { customer: result.rows[0] },
           });
+        })
+        .catch((err) => {
+          logger.error("Database error in /me (customer):", err);
+          res.clearCookie("token", getClearCookieOptions());
+          return res
+            .status(500)
+            .json({ success: false, message: "Internal server error" });
         });
-    } catch {
+    } catch (custError) {
+      logger.warn("Invalid token in /me endpoint", {
+        empError: (empError as Error).message,
+        custError: (custError as Error).message,
+      });
+      res.clearCookie("token", getClearCookieOptions());
       return res.status(401).json({ success: false, message: "Invalid token" });
     }
   }
