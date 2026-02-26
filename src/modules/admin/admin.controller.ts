@@ -2159,3 +2159,32 @@ export const createCustomerServiceRequest = async (
     });
   }
 };
+
+export const getServiceDepartmentEmployees = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const query = `
+  SELECT
+    employee_id as id,
+    firstname as first_name,
+    lastname as last_name,
+    email,
+    d.dept_name as department
+  FROM employee e
+  LEFT JOIN department d ON e.department_id = d.dept_id
+  WHERE e.department_id = 1
+  ORDER BY firstname, lastname
+  `;
+
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    logger.error("Get service department employees error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch service department employees",
+    });
+  }
+};

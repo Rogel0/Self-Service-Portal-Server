@@ -48,6 +48,12 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
+// Debug: Log all incoming requests FIRST
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.path}`);
+  next();
+});
+
 // Serve uploads; allow cross-origin so client on different port (e.g. localhost:5173) can load images
 app.use(
   "/uploads",
@@ -70,9 +76,11 @@ app.use("/api/auth/customer", customerAuthRoutes);
 app.use("/api/profile", profileRoutes);
 
 //Service request routes
-app.use("/api/service-requests", serviceRequestRoutes);
+// app.use("/api/service-requests", serviceRequestRoutes);
 
 app.use("/api/admin/service-requests", adminServiceRequestRoutes);
+
+app.use("/api/service-requests", serviceRequestRoutes);
 
 // Machine routes
 app.use("/api/machines", machineRoutes);

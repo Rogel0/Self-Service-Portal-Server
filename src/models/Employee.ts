@@ -33,7 +33,6 @@ export interface EmployeeSafe {
   username: string;
   email: string;
   created_at: Date;
-  updated_at: Date;
 }
 
 export interface UpdateEmployeeInput {

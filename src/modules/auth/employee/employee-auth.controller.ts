@@ -1,7 +1,11 @@
 import { Request, Response } from "express";
 import * as employeeAuthService from "./employee-auth.service";
 import logger from "../../../utils/logger";
-import { getAuthCookieOptions, getCookieConfig } from "../../../utils/cookie";
+import {
+  getAuthCookieOptions,
+  getClearCookieOptions,
+  getCookieConfig,
+} from "../../../utils/cookie";
 import pool from "../../../config/database";
 
 // POST /api/auth/employee/login
@@ -42,7 +46,7 @@ export const login = async (req: Request, res: Response) => {
 };
 
 export const logout = async (req: Request, res: Response) => {
-  res.clearCookie("token", getCookieConfig());
+  res.clearCookie("token", getClearCookieOptions());
   return res.json({ success: true, message: "Logged out" });
 };
 

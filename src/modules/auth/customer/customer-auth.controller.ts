@@ -2,7 +2,11 @@ import { Request, Response } from "express";
 import pool from "../../../config/database";
 import { comparePassword } from "../../../utils/hash";
 import { generateCustomerToken } from "../../../utils/token";
-import { getAuthCookieOptions, getCookieConfig } from "../../../utils/cookie";
+import {
+  getAuthCookieOptions,
+  getClearCookieOptions,
+  getCookieConfig,
+} from "../../../utils/cookie";
 
 export const login = async (req: Request, res: Response) => {
   const { username, password, keepSignedIn } = req.body;
@@ -75,7 +79,6 @@ export const getMe = async (req: Request, res: Response) => {
 };
 
 export const logout = async (req: Request, res: Response) => {
-  // clear cookie using base cookie config
-  res.clearCookie("token", getCookieConfig());
-  return res.json({ success: true, message: "Logged out successfully" });
+  res.clearCookie("token", getClearCookieOptions());
+  return res.json({ success: true, message: "Logged out" });
 };

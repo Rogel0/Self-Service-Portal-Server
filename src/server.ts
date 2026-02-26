@@ -10,12 +10,12 @@ const startServer = async () => {
     logger.info("Database connected");
 
     // Start server
-    app.listen(env.PORT, () => {
+    const server = app.listen(env.PORT, () => {
       logger.info(`Server running on port ${env.PORT}`);
     });
   } catch (error) {
     logger.error("Failed to start server:", error);
-    console.error(error);
+
     process.exit(1);
   }
 };

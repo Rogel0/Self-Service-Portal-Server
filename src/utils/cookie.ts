@@ -9,7 +9,7 @@ export const getCookieConfig = (): CookieOptions => {
       : true
     : false;
   const cookieSameSite = isProd
-    ? process.env.COOKIE_SAMESITE ?? "none"
+    ? (process.env.COOKIE_SAMESITE ?? "none")
     : "lax";
 
   return {
@@ -24,5 +24,13 @@ export const getAuthCookieOptions = (keepSignedIn: boolean): CookieOptions => {
   return {
     ...getCookieConfig(),
     maxAge: keepSignedIn ? COOKIE_MAX_AGE.LONG : COOKIE_MAX_AGE.SHORT,
+  };
+};
+
+export const getClearCookieOptions = (): CookieOptions => {
+  return {
+    ...getCookieConfig(),
+    maxAge: 0,
+    expires: new Date(0),
   };
 };

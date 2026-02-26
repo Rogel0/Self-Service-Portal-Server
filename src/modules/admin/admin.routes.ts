@@ -340,5 +340,10 @@ router.post(
 
 router.get("/settings", employeeAuth, controller.getSettings);
 router.put("/settings", employeeAuth, controller.updateSettings);
+router.get(
+  "/employees/service",
+  employeeAuth,
+  controller.getServiceDepartmentEmployees,
+);
 
 export default router;

@@ -3,8 +3,16 @@ import * as employeeAuthService from "./employee/employee-auth.service";
 import * as employeeController from "./employee/employee-auth.controller";
 import pool from "../../config/database";
 import { comparePassword } from "../../utils/hash";
-import { generateCustomerToken } from "../../utils/token";
-import { getAuthCookieOptions, getCookieConfig } from "../../utils/cookie";
+import { generateCustomerToken, generateToken } from "../../utils/token";
+import {
+  getAuthCookieOptions,
+  getClearCookieOptions,
+  getCookieConfig,
+} from "../../utils/cookie";
+import { verifyToken, verifyCustomerToken } from "../../utils/token";
+import { success } from "zod";
+import logger from "../../utils/logger";
+import { COOKIE_MAX_AGE } from "../../constants";
 
 const router = Router();
 
@@ -138,14 +146,70 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
+router.post("/refresh", (req: Request, res: Response) => {
+  const token =
+    req.cookies?.token || req.headers.authorization?.startsWith("Bearer ")
+      ? req.headers.authorization?.split(" ")[1]
+      : undefined;
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: "No token to refresh",
+    });
+  }
+
+  try {
+    const employeePayload = verifyToken(token);
+    if (employeePayload?.employee_id) {
+      const newToken = generateToken(employeePayload);
+      res.cookie("token", newToken, {
+        ...getCookieConfig(),
+        maxAge: COOKIE_MAX_AGE.SHORT,
+      });
+      return res.json({
+        success: true,
+        message: "Token refreshed",
+      });
+    }
+  } catch (error) {
+    logger.error("Error refreshing employee token:", error);
+  }
+
+  try {
+    const customerPayload = verifyCustomerToken(token);
+    if (customerPayload?.customer_id) {
+      const newToken = generateCustomerToken(customerPayload);
+      res.cookie("token", newToken, {
+        ...getCookieConfig(),
+        maxAge: COOKIE_MAX_AGE.SHORT,
+      });
+      return res.json({
+        success: true,
+        message: "Token refreshed",
+      });
+    }
+  } catch (err) {
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired token",
+    });
+  }
+
+  return res.status(401).json({
+    success: false,
+    message: "Invalid token format",
+  });
+});
+
 // Unified logout: clear cookie
 router.post("/logout", (req: Request, res: Response) => {
-  res.clearCookie("token", getCookieConfig());
+  res.clearCookie("token", getClearCookieOptions());
   return res.json({ success: true, message: "Logged out" });
 });
 
 // Unified me: try employeeAuth middleware-like verification, then customer
-import { verifyToken, verifyCustomerToken } from "../../utils/token";
+
 router.get("/me", (req: Request, res: Response) => {
   const token =
     req.cookies?.token ||
@@ -271,7 +335,10 @@ router.get("/me", (req: Request, res: Response) => {
               .status(404)
               .json({ success: false, message: "User not found" });
           }
-          return res.json({ success: true, data: { customer: result.rows[0] } });
+          return res.json({
+            success: true,
+            data: { customer: result.rows[0] },
+          });
         });
     } catch {
       return res.status(401).json({ success: false, message: "Invalid token" });
