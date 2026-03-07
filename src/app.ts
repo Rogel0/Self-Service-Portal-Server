@@ -18,6 +18,7 @@ import logisticsRoutes from "./modules/logistics/logistics.routes";
 import productsRoutes from "./modules/products/products.routes";
 import serviceRequestRoutes from "./modules/service-request/service-request.routes";
 import adminServiceRequestRoutes from "./modules/service-request/service-request.admin.routes";
+import newsRoutes from "./modules/news/news.routes";
 
 const app = express();
 
@@ -102,6 +103,10 @@ app.use("/api/logistics", logisticsRoutes);
 
 // Products routes
 app.use("/api/products", productsRoutes);
+
+app.use("/api/admin/news", newsRoutes);
+
+app.use("/api/news", newsRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {
