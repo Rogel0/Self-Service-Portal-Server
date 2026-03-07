@@ -87,7 +87,7 @@ export const createNews = async (req: Request, res: Response) => {
         { contentType: thumbFile.mimetype },
       );
 
-      data.thumbnail_url = await storage.getFileUrl(
+      data.thumbnail_url = await storage.getPublicUrl(
         "news-thumbnails",
         thumbPath,
       );
@@ -166,7 +166,7 @@ export const updateNews = async (req: Request, res: Response) => {
         { contentType: thumbFile.mimetype },
       );
 
-      data.thumbnail_url = await storage.getFileUrl(
+      data.thumbnail_url = await storage.getPublicUrl(
         "news-thumbnails",
         thumbPath,
       );
@@ -265,7 +265,10 @@ export const migrateNewsUrls = async (req: Request, res: Response) => {
 
       // Update video URL if it's a Supabase storage URL
       if (news.video_url && news.video_url.includes("/storage/v1/object/")) {
-        const newUrl = await storage.getPublicUrl("news-videos", news.video_url);
+        const newUrl = await storage.getPublicUrl(
+          "news-videos",
+          news.video_url,
+        );
         if (newUrl !== news.video_url) {
           updates.video_url = newUrl;
           needsUpdate = true;
@@ -273,8 +276,14 @@ export const migrateNewsUrls = async (req: Request, res: Response) => {
       }
 
       // Update thumbnail URL if it's a Supabase storage URL
-      if (news.thumbnail_url && news.thumbnail_url.includes("/storage/v1/object/")) {
-        const newUrl = await storage.getPublicUrl("news-thumbnails", news.thumbnail_url);
+      if (
+        news.thumbnail_url &&
+        news.thumbnail_url.includes("/storage/v1/object/")
+      ) {
+        const newUrl = await storage.getPublicUrl(
+          "news-thumbnails",
+          news.thumbnail_url,
+        );
         if (newUrl !== news.thumbnail_url) {
           updates.thumbnail_url = newUrl;
           needsUpdate = true;
@@ -294,6 +303,8 @@ export const migrateNewsUrls = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error migrating news URLs:", error);
-    res.status(500).json({ success: false, message: "Failed to migrate news URLs" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to migrate news URLs" });
   }
 };
