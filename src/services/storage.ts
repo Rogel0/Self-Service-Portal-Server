@@ -227,3 +227,100 @@ export async function resolveUrl(
     return `${base}/uploads/${bucket}/${clean}`;
   }
 }
+
+export async function deleteFile(
+  bucket: string,
+  pathOrUrl: string,
+): Promise<void> {
+  const mode = await getStorageMode();
+
+  if (mode === "cloud") {
+    // Delete from Supabase Storage
+    const extractedPath = pathOrUrl.startsWith("http")
+      ? extractStoragePath(bucket, pathOrUrl)
+      : pathOrUrl;
+
+    if (!extractedPath) return;
+
+    const { error } = await supabase.storage
+      .from(bucket)
+      .remove([extractedPath]);
+
+    if (error) {
+      console.error(`Error deleting file from Supabase:`, error);
+    }
+  } else {
+    // Delete from local filesystem
+    const uploadsDir = getUploadsDir();
+    let clean = pathOrUrl.replace(/^\/+/, "").replace(/\\/g, "/");
+
+    // Remove bucket prefix if present
+    if (clean.startsWith(`${bucket}/`)) {
+      clean = clean.substring(bucket.length + 1);
+    }
+
+    const localPath = path.join(uploadsDir, bucket, clean);
+
+    if (fs.existsSync(localPath)) {
+      fs.unlinkSync(localPath);
+      console.log(`Deleted local file: ${localPath}`);
+    }
+  }
+}
+
+export async function getFileUrl(
+  bucket: string,
+  pathOrUrl: string,
+): Promise<string> {
+  return await resolveUrl(bucket, pathOrUrl);
+}
+
+export async function getPublicUrl(
+  bucket: string,
+  pathOrUrl: string,
+): Promise<string> {
+  if (!pathOrUrl) return pathOrUrl;
+
+  // If it's an external URL (YouTube, Vimeo, etc.), return as-is
+  if (pathOrUrl.startsWith("http")) {
+    const isStorageUrl =
+      pathOrUrl.includes("/storage/v1/object/") ||
+      pathOrUrl.includes("/object/public/") ||
+      pathOrUrl.includes("/object/sign/") ||
+      pathOrUrl.includes("localhost") ||
+      pathOrUrl.includes("127.0.0.1");
+
+    if (!isStorageUrl) {
+      return pathOrUrl;
+    }
+  }
+
+  const mode = await getStorageMode();
+
+  if (mode === "cloud") {
+    const resolvedPath = normalizeStoragePath(
+      bucket,
+      extractStoragePath(bucket, pathOrUrl) ?? pathOrUrl,
+    );
+    if (!resolvedPath) return pathOrUrl;
+
+    const { data } = supabase.storage.from(bucket).getPublicUrl(resolvedPath);
+    return data.publicUrl;
+  }
+
+  // For local mode, use local URL
+  const pathToTry = pathOrUrl.startsWith("http")
+    ? (extractStoragePath(bucket, pathOrUrl) ?? pathOrUrl)
+    : pathOrUrl;
+
+  const localUrl = tryLocalUrl(bucket, pathToTry);
+  if (localUrl) return localUrl;
+
+  // Fallback
+  const clean = pathToTry.replace(/^\/+/, "").replace(/\\/g, "/");
+  if (env.NODE_ENV === "development") {
+    return `/uploads/${bucket}/${clean}`;
+  }
+  const base = env.UPLOADS_BASE_URL.replace(/\/$/, "");
+  return `${base}/uploads/${bucket}/${clean}`;
+}
