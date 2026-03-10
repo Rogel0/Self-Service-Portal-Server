@@ -8,6 +8,7 @@ export const createServiceRequestSchema = z.object({
     .optional(),
   subject: z.string().min(1, "Subject is required"),
   description: z.string().optional(),
+  address: z.string().optional(),
 });
 
 export const updateServiceRequestSchema = z.object({

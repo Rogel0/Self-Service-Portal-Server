@@ -19,6 +19,7 @@ export const getMyAssignedRequests = async (req: Request, res: Response) => {
           sr.service_request_id,
           sr.subject as title,
           sr.description,
+          sr.address,
           sr.status,
           sr.priority,
           sr.customer_id,
