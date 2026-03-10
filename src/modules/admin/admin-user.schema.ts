@@ -34,6 +34,8 @@ export const updateEmployeePermissionSchema = z.object({
     "service_requests_manage",
     "customers_manage",
     "permissions_manage",
+    "account_technicians_manage",
+    "news_manage",
   ]),
   allowed: z.boolean(),
 });

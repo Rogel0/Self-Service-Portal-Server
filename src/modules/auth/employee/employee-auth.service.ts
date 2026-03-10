@@ -39,7 +39,8 @@ export const login = async (
        COALESCE(ep_customers.allowed, dp_customers.allowed, false) AS customers_manage,
        COALESCE(ep_permissions.allowed, dp_permissions.allowed, false) AS permissions_manage,
        COALESCE(ep_service.allowed, dp_service.allowed, false) AS service_requests_manage,
-       COALESCE(ep_account_tech.allowed, dp_account_tech.allowed, false) AS account_technicians_manage
+       COALESCE(ep_account_tech.allowed, dp_account_tech.allowed, false) AS account_technicians_manage,
+       COALESCE(ep_news.allowed, dp_news.allowed, false) AS news_manage
       FROM employee e
       JOIN department d ON e.department_id = d.dept_id
       LEFT JOIN employee_permission ep_machines
@@ -120,6 +121,12 @@ export const login = async (
       LEFT JOIN department_permission dp_account_tech
         ON e.department_id = dp_account_tech.department_id
        AND dp_account_tech.permission_key = 'account_technicians_manage'
+      LEFT JOIN employee_permission ep_news
+        ON e.employee_id = ep_news.employee_id
+       AND ep_news.permission_key = 'news_manage'
+      LEFT JOIN department_permission dp_news
+        ON e.department_id = dp_news.department_id
+       AND dp_news.permission_key = 'news_manage'
       WHERE lower(e.username) = lower($1) OR lower(e.email) = lower($1)
       LIMIT 1`,
       [usernameOrEmail],

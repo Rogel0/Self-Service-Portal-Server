@@ -353,7 +353,19 @@ export const getEmployees = async (req: Request, res: Response) => {
           WHEN ep_service.allowed IS NOT NULL THEN 'override'
           WHEN dp_service.allowed IS NOT NULL THEN 'department'
           ELSE 'none'
-        END AS service_requests_manage_source
+        END AS service_requests_manage_source,
+        COALESCE(ep_account_tech.allowed, dp_account_tech.allowed, false) AS account_technicians_manage,
+        CASE 
+          WHEN ep_account_tech.allowed IS NOT NULL THEN 'override'
+          WHEN dp_account_tech.allowed IS NOT NULL THEN 'department'
+          ELSE 'none'
+        END AS account_technicians_manage_source,
+        COALESCE(ep_news.allowed, dp_news.allowed, false) AS news_manage,
+        CASE
+          WHEN ep_news.allowed IS NOT NULL THEN 'override'
+          WHEN dp_news.allowed IS NOT NULL THEN 'department'
+          ELSE 'none'
+        END AS news_manage_source
        FROM employee e
        LEFT JOIN roles r ON e.role_id = r.role_id
        LEFT JOIN department d ON e.department_id = d.dept_id
@@ -429,6 +441,18 @@ export const getEmployees = async (req: Request, res: Response) => {
       LEFT JOIN department_permission dp_service
        ON e.department_id = dp_service.department_id
        AND dp_service.permission_key = 'service_requests_manage'
+      LEFT JOIN employee_permission ep_account_tech
+       ON e.employee_id = ep_account_tech.employee_id
+       AND ep_account_tech.permission_key = 'account_technicians_manage'
+      LEFT JOIN department_permission dp_account_tech
+       ON e.department_id = dp_account_tech.department_id
+       AND dp_account_tech.permission_key = 'account_technicians_manage'
+      LEFT JOIN employee_permission ep_news
+       ON e.employee_id = ep_news.employee_id
+       AND ep_news.permission_key = 'news_manage'
+      LEFT JOIN department_permission dp_news
+       ON e.department_id = dp_news.department_id
+       AND dp_news.permission_key = 'news_manage'
       ORDER BY e.created_at DESC`,
     );
 
@@ -455,7 +479,10 @@ export const updateEmployeePermission = async (req: Request, res: Response) => {
       | "parts_requests_manage"
       | "quotes_manage"
       | "customers_manage"
-      | "permissions_manage";
+      | "permissions_manage"
+      | "service_requests_manage"
+      | "account_technicians_manage"
+      | "news_manage";
     allowed: boolean;
   };
 
