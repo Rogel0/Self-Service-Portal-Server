@@ -19,6 +19,7 @@ import productsRoutes from "./modules/products/products.routes";
 import serviceRequestRoutes from "./modules/service-request/service-request.routes";
 import adminServiceRequestRoutes from "./modules/service-request/service-request.admin.routes";
 import newsRoutes from "./modules/news/news.routes";
+import serviceRequestTechnicianRouter from "./modules/service-request/service-request.technician.routes";
 
 const app = express();
 
@@ -107,6 +108,8 @@ app.use("/api/products", productsRoutes);
 app.use("/api/admin/news", newsRoutes);
 
 app.use("/api/news", newsRoutes);
+
+app.use("/api/technician/service-requests", serviceRequestTechnicianRouter);
 
 // Health check
 app.get("/api/health", (req, res) => {

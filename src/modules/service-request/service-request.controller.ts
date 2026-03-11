@@ -14,13 +14,13 @@ export const createServiceRequest = async (req: Request, res: Response) => {
 
   try {
     // const { machineId, subject, description, priority } = req.body;
-    const { machine_id, subject, description, priority } = req.body;
+    const { machine_id, subject, description, priority, address } = req.body;
 
     const result = await pool.query(
       `INSERT INTO service_request 
-      (customer_id, machine_id, subject, description, priority, status, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, 'pending', NOW(), NOW())
-       RETURNING service_request_id as id, customer_id, machine_id, subject, description, priority, status, created_at`,
+      (customer_id, machine_id, subject, description, priority, address, status, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW(), NOW())
+       RETURNING service_request_id as id, customer_id, machine_id, subject, description, priority, address, status, created_at`,
       [
         customerId,
         // machineId || null,
@@ -28,6 +28,7 @@ export const createServiceRequest = async (req: Request, res: Response) => {
         subject,
         description || null,
         priority || "medium",
+        address || null,
       ],
     );
 

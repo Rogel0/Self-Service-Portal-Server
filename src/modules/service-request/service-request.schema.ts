@@ -8,6 +8,7 @@ export const createServiceRequestSchema = z.object({
     .optional(),
   subject: z.string().min(1, "Subject is required"),
   description: z.string().optional(),
+  address: z.string().optional(),
 });
 
 export const updateServiceRequestSchema = z.object({
@@ -27,4 +28,8 @@ export const assignTechnicianSchema = z.object({
     .int()
     .positive("Technician ID must be a positive integer"),
   notes: z.string().optional(),
+});
+
+export const createNoteSchema = z.object({
+  note_text: z.string().min(1, "Note text is required").max(2000, "Note text must be less than 2000 characters"),
 });
