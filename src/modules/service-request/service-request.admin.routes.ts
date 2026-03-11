@@ -4,6 +4,8 @@ import {
   employeeAuth,
   requireAdminOrPermission,
 } from "../../middlewares/auth.middleware";
+import { createNoteSchema } from "./service-request.schema";
+import validate from "../../middlewares/validate.middleware";
 
 const router = express.Router();
 
@@ -40,6 +42,21 @@ router.delete(
   employeeAuth,
   requireServiceRequestsManage,
   controller.unassignTechnician,
+);
+
+router.get(
+  "/:requestId/notes",
+  employeeAuth,
+  requireServiceRequestsManage,
+  controller.getServiceRequestNotes,
+);
+
+router.post(
+  "/:requestId/notes",
+  employeeAuth,
+  requireServiceRequestsManage,
+  validate(createNoteSchema, "body"),
+  controller.createServiceRequestNote,
 );
 
 // router.get("/", employeeAuth, controller.getAllServiceRequests);

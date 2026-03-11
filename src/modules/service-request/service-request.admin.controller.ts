@@ -471,3 +471,110 @@ export const unassignTechnician = async (req: Request, res: Response) => {
     client.release();
   }
 };
+
+export const getServiceRequestNotes = async (req: Request, res: Response) => {
+  try {
+    const { requestId } = req.params;
+    const result = await pool.query(
+      `SELECT
+        srn.note_id,
+        srn.service_request_id,
+        srn.employee_id,
+        srn.note_text,
+        srn.is_internal,
+        srn.created_at,
+        srn.created_at,
+        e.firstname || ' ' || e.lastname as author_name,
+        e.email as author_email
+      FROM service_request_notes srn
+      LEFT JOIN employee e ON srn.employee_id = e.employee_id
+      WHERE srn.service_request_id = $1
+      ORDER BY srn.created_at DESC`,
+      [requestId],
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        notes: result.rows,
+      },
+    });
+  } catch (error) {
+    logger.error("Get service request notes error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch notes",
+    });
+  }
+};
+
+export const createServiceRequestNote = async (req: Request, res: Response) => {
+  try {
+    const { requestId } = req.params;
+    const { note_text } = req.body;
+    const employeeId = req.employee?.employee_id;
+
+    if (!employeeId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const requestCheck = await pool.query(
+      "SELECT service_request_id FROM service_request WHERE service_request_id = $1",
+      [requestId],
+    );
+
+    if (requestCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Service request not found",
+      });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO service_request_notes 
+        (service_request_id, employee_id, note_text, is_internal, created_at, updated_at)
+      VALUES ($1, $2, $3, true, NOW(), NOW())
+      RETURNING 
+        note_id,
+        service_request_id,
+        employee_id,
+        note_text,
+        is_internal,
+        created_at,
+        updated_at`,
+      [requestId, employeeId, note_text],
+    );
+
+    const noteWithAuthor = await pool.query(
+      `SELECT 
+        srn.*,
+        e.firstname || ' ' || e.lastname as author_name,
+        e.email as author_email
+      FROM service_request_notes srn
+      LEFT JOIN employee e ON srn.employee_id = e.employee_id
+      WHERE srn.note_id = $1`,
+      [result.rows[0].note_id],
+    );
+
+    logger.info("Service request note created", {
+      note_id: result.rows[0].note_id,
+      service_request_id: requestId,
+      employeeId: employeeId,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Note added successfully",
+      data: noteWithAuthor.rows[0],
+    });
+  } catch (error) {
+    logger.error("Create service request note error", { error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create note",
+    });
+  }
+};
