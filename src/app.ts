@@ -20,6 +20,7 @@ import serviceRequestRoutes from "./modules/service-request/service-request.rout
 import adminServiceRequestRoutes from "./modules/service-request/service-request.admin.routes";
 import newsRoutes from "./modules/news/news.routes";
 import serviceRequestTechnicianRouter from "./modules/service-request/service-request.technician.routes";
+import dashboardRoutes from "./modules/dashboard/dashboard.routes";
 
 const app = express();
 
@@ -110,6 +111,8 @@ app.use("/api/admin/news", newsRoutes);
 app.use("/api/news", newsRoutes);
 
 app.use("/api/technician/service-requests", serviceRequestTechnicianRouter);
+
+app.use("/api/admin/dashboard", dashboardRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {

@@ -6,6 +6,7 @@ import { supabase } from "../../utils/supabase";
 import { success } from "zod";
 import * as storage from "../../services/storage";
 import { computeWarrantyInfo } from "../../utils/warranty";
+import { ensureEmployeeSecurityTables } from "../auth/employee/employee-security.service";
 
 // Get pending customer registrations
 export const getPendingRegistrations = async (req: Request, res: Response) => {
@@ -1809,6 +1810,140 @@ export const updateEmployee = async (req: Request, res: Response) => {
     return res
       .status(500)
       .json({ success: false, message: "Failed to update employee" });
+  }
+};
+
+export const resetEmployeePassword = async (req: Request, res: Response) => {
+  const { employeeId } = req.params;
+  const adminEmployeeId = req.employee?.employee_id;
+  const { new_password, generate_temporary, require_password_change, reason } =
+    req.body as {
+      new_password?: string;
+      generate_temporary?: boolean;
+      require_password_change?: boolean;
+      reason?: string;
+    };
+
+  if (!adminEmployeeId) {
+    return res.status(401).json({
+      success: false,
+      message: "Authentication required",
+    });
+  }
+
+  const parsedEmployeeId = parseInt(
+    Array.isArray(employeeId) ? employeeId[0] : employeeId,
+    10,
+  );
+  if (!Number.isInteger(parsedEmployeeId) || parsedEmployeeId <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid employee ID",
+    });
+  }
+
+  const shouldGenerate = generate_temporary ?? !new_password;
+  const plainPassword = shouldGenerate
+    ? `${Math.random().toString(36).slice(-8)}A1!${Math.random()
+        .toString(36)
+        .slice(-2)}`
+    : String(new_password).trim();
+
+  if (!plainPassword || plainPassword.length < 8) {
+    return res.status(400).json({
+      success: false,
+      message: "Password must be at least 8 characters",
+    });
+  }
+
+  const forceChange = require_password_change ?? true;
+
+  let client;
+  try {
+    await ensureEmployeeSecurityTables();
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const targetEmployeeResult = await client.query(
+      `SELECT employee_id, username FROM employee WHERE employee_id = $1 LIMIT 1`,
+      [parsedEmployeeId],
+    );
+
+    if (targetEmployeeResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      client.release();
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+
+    const hashedPassword = await hashPassword(plainPassword);
+
+    await client.query(
+      `UPDATE employee
+       SET password = $1,
+           updated_at = NOW()
+       WHERE employee_id = $2`,
+      [hashedPassword, parsedEmployeeId],
+    );
+
+    await client.query(
+      `INSERT INTO employee_security_state (employee_id, must_change_password, updated_by_employee_id, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (employee_id)
+       DO UPDATE SET must_change_password = EXCLUDED.must_change_password,
+                     updated_by_employee_id = EXCLUDED.updated_by_employee_id,
+                     updated_at = NOW()`,
+      [parsedEmployeeId, forceChange, adminEmployeeId],
+    );
+
+    await client.query(
+      `INSERT INTO employee_password_change_audit
+       (employee_id, changed_by_employee_id, reason, force_change_on_login, created_at)
+       VALUES ($1, $2, $3, $4, NOW())`,
+      [
+        parsedEmployeeId,
+        adminEmployeeId,
+        reason?.toString().trim() || null,
+        forceChange,
+      ],
+    );
+
+    await client.query("COMMIT");
+    client.release();
+
+    logger.info("Employee password reset by admin", {
+      employee_id: parsedEmployeeId,
+      changed_by_employee_id: adminEmployeeId,
+      force_change_on_login: forceChange,
+    });
+
+    return res.json({
+      success: true,
+      message: "Employee password reset successfully",
+      data: {
+        employee_id: parsedEmployeeId,
+        username: targetEmployeeResult.rows[0].username,
+        temporary_password: plainPassword,
+        must_change_password: forceChange,
+      },
+    });
+  } catch (error) {
+    if (client) {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+
+    logger.error("Reset employee password error", {
+      error,
+      employee_id: parsedEmployeeId,
+      changed_by_employee_id: adminEmployeeId,
+    });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to reset employee password",
+    });
   }
 };
 
