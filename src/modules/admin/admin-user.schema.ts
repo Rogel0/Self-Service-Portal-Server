@@ -39,3 +39,10 @@ export const updateEmployeePermissionSchema = z.object({
   ]),
   allowed: z.boolean(),
 });
+
+export const resetEmployeePasswordSchema = z.object({
+  new_password: z.string().min(8).optional(),
+  generate_temporary: z.boolean().optional(),
+  require_password_change: z.boolean().optional(),
+  reason: z.string().max(300).optional(),
+});

@@ -4,7 +4,10 @@ import { employeeAuth as authenticate } from "../../../middlewares/auth.middlewa
 import { getMe } from "./employee-auth.controller";
 import rateLimit from "express-rate-limit";
 import * as controller from "./employee-auth.controller";
-import { employeeLoginSchema } from "./employee-auth.schema";
+import {
+  employeeChangePasswordSchema,
+  employeeLoginSchema,
+} from "./employee-auth.schema";
 import validate from "../../../middlewares/validate.middleware";
 
 const router = express.Router();
@@ -30,5 +33,11 @@ router.post(
 
 router.post("/logout", controller.logout);
 router.get("/me", authenticate, getMe);
+router.post(
+  "/change-password",
+  authenticate,
+  validate(employeeChangePasswordSchema, "body"),
+  controller.changePassword,
+);
 
 export default router;

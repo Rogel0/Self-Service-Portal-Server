@@ -4,6 +4,7 @@ import validate from "../../middlewares/validate.middleware";
 import multer from "multer";
 import {
   createEmployeeSchema,
+  resetEmployeePasswordSchema,
   updateEmployeeSchema,
   updateEmployeePermissionSchema,
 } from "./admin-user.schema";
@@ -22,6 +23,7 @@ import {
   requireAdminOrPermission,
 } from "../../middlewares/auth.middleware";
 import { multerErrorHandler } from "../../middlewares/multer-error.middleware";
+import { adminOnly } from "../../middlewares/admin.middleware";
 
 const router = express.Router();
 const requireMachinesManage = requirePermission("machines_manage");
@@ -89,6 +91,13 @@ router.put(
   requirePermissionsManage,
   validate(updateEmployeePermissionSchema, "body"),
   controller.updateEmployeePermission,
+);
+router.post(
+  "/users/employees/:employeeId/reset-password",
+  employeeAuth,
+  adminOnly,
+  validate(resetEmployeePasswordSchema, "body"),
+  controller.resetEmployeePassword,
 );
 router.get(
   "/users/customers",

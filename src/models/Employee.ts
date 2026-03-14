@@ -8,6 +8,7 @@ export interface Employee {
   username: string;
   password: string;
   email: string;
+  must_change_password?: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -32,6 +33,7 @@ export interface EmployeeSafe {
   department_id: number;
   username: string;
   email: string;
+  must_change_password?: boolean;
   created_at: Date;
 }
 

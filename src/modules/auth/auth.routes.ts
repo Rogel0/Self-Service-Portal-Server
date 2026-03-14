@@ -13,6 +13,7 @@ import { verifyToken, verifyCustomerToken } from "../../utils/token";
 import { success } from "zod";
 import logger from "../../utils/logger";
 import { COOKIE_MAX_AGE } from "../../constants";
+import { ensureEmployeeSecurityTables } from "./employee/employee-security.service";
 
 const router = Router();
 
@@ -225,10 +226,12 @@ router.get("/me", (req: Request, res: Response) => {
     if (!payload?.employee_id) {
       throw new Error("Not an employee token");
     }
-    return pool
-      .query(
-        `SELECT e.employee_id, e.firstname, e.lastname, e.middlename, e.role_id, e.department_id,
+    return ensureEmployeeSecurityTables()
+      .then(() =>
+        pool.query(
+          `SELECT e.employee_id, e.firstname, e.lastname, e.middlename, e.role_id, e.department_id,
                 d.dept_name AS department, e.username, e.email, e.created_at, e.updated_at,
+                COALESCE(ess.must_change_password, false) AS must_change_password,
                 COALESCE(ep_machines.allowed, dp_machines.allowed, false) AS machines_manage,
                 COALESCE(ep_add.allowed, dp_add.allowed, false) AS machines_add,
                 COALESCE(ep_manuals.allowed, dp_manuals.allowed, false) AS manuals_manage,
@@ -245,6 +248,7 @@ router.get("/me", (req: Request, res: Response) => {
                 COALESCE(ep_news.allowed, dp_news.allowed, false) AS news_manage
          FROM employee e
          JOIN department d ON e.department_id = d.dept_id
+         LEFT JOIN employee_security_state ess ON e.employee_id = ess.employee_id
          LEFT JOIN employee_permission ep_machines
            ON e.employee_id = ep_machines.employee_id AND ep_machines.permission_key = 'machines_manage'
          LEFT JOIN department_permission dp_machines
@@ -303,7 +307,8 @@ router.get("/me", (req: Request, res: Response) => {
            ON e.department_id = dp_news.department_id AND dp_news.permission_key = 'news_manage' 
          WHERE e.employee_id = $1
          LIMIT 1`,
-        [payload.employee_id],
+          [payload.employee_id],
+        ),
       )
       .then((result) => {
         if (!result.rows.length) {
