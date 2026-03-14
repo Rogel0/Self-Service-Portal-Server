@@ -30,7 +30,7 @@ export const register = async (req: Request, res: Response) => {
     const existingUser = await client.query(
       `SELECT customer_id FROM customer_user 
        WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2)`,
-      [username, email]
+      [username, email],
     );
 
     if (existingUser.rows.length > 0) {
@@ -62,12 +62,14 @@ export const register = async (req: Request, res: Response) => {
         initial_model_number,
         initial_serial_number,
         initial_purchase_date || null,
-      ]
+      ],
     );
 
     await client.query("COMMIT");
 
-    logger.info("Customer registered", { customer_id: result.rows[0].customer_id });
+    logger.info("Customer registered", {
+      customer_id: result.rows[0].customer_id,
+    });
 
     return res.status(201).json({
       success: true,
@@ -101,7 +103,7 @@ export const changePassword = async (req: Request, res: Response) => {
     // Get current password
     const result = await pool.query(
       `SELECT password FROM customer_user WHERE customer_id = $1`,
-      [customerId]
+      [customerId],
     );
 
     if (result.rows.length === 0) {
@@ -114,13 +116,20 @@ export const changePassword = async (req: Request, res: Response) => {
     // Verify current password
     const isValid = await comparePassword(
       current_password,
-      result.rows[0].password
+      result.rows[0].password,
     );
 
     if (!isValid) {
       return res.status(400).json({
         success: false,
         message: "Current password is incorrect",
+      });
+    }
+
+    if (current_password === new_password) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be different from current password",
       });
     }
 
@@ -132,7 +141,7 @@ export const changePassword = async (req: Request, res: Response) => {
       `UPDATE customer_user 
        SET password = $1, updated_at = NOW() 
        WHERE customer_id = $2`,
-      [hashedPassword, customerId]
+      [hashedPassword, customerId],
     );
 
     logger.info("Password changed", { customer_id: customerId });
